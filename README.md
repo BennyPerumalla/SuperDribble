@@ -4,6 +4,33 @@
 
 This project enhances the audio processing capabilities of the VLC media player by implementing advanced audio filters. It focuses on delivering immersive 3D audio effects, sophisticated channel mixing (like Dolby Prologic-II upmixing), versatile audio track mixing/transitions, Lua scripting for custom filters, and integration with external LADSPA audio plugins. Our goal is to provide VLC users with richer, more customizable audio experiences and contribute valuable functionalities to the open-source multimedia ecosystem.
 
+### directory structure
+``` txt
+Advanced-VLC-Audio-Filters/
+├── docs/
+│   ├── technical_documentation.md
+│   └── user_guide.md
+├── src/
+│   ├── modules/
+│   │   ├── audio_filter/
+│   │   │   ├── 3d_audio.c
+│   │   │   ├── prologic_upmix.c
+│   │   │   ├── track_mixer.c
+│   │   │   ├── lua_filters.c
+│   │   │   └── ladspa_integration.c
+├── examples/
+│   ├── lua_filters/
+│   │   ├── basic_eq.lua
+│   │   └── delay_effect.lua
+├── tests/
+│   ├── test_3d_audio.c
+│   ├── test_prologic_upmix.c
+│   └── test_track_mixer.c
+├── LICENSE
+├── README.md
+└── CONTRIBUTING.md
+```
+
 ## Features
 
 1.  **Immersive 3D Audio Effects:**
