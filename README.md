@@ -1,82 +1,131 @@
-# Advanced Audio Filters for VLC Media Player
+# 🎧 Super-Dribble: Real-Time Audio Enhancement Extension
 
-## Overview
+**Super-Dribble** is a powerful, browser-based audio extension that brings real-time audio processing to Chrome/Brave users. It delivers an immersive listening experience through advanced **equalizer** and **spatializer** filters powered by **WebAssembly (WASM)** and **C/C++ DSP code**. The extension also supports dynamic Lua-scripted preset import/export for full customization.
 
-This project enhances the audio processing capabilities of the VLC media player by implementing advanced audio filters. It focuses on delivering immersive 3D audio effects, sophisticated channel mixing (like Dolby Prologic-II upmixing), versatile audio track mixing/transitions, Lua scripting for custom filters, and integration with external LADSPA audio plugins. Our goal is to provide VLC users with richer, more customizable audio experiences and contribute valuable functionalities to the open-source multimedia ecosystem.
 
-### directory structure
-``` txt
-Advanced-VLC-Audio-Filters/
-├── docs/
-│   ├── technical_documentation.md
-│   └── user_guide.md
-├── src/
-│   ├── modules/
-│   │   ├── audio_filter/
-│   │   │   ├── 3d_audio.c
-│   │   │   ├── prologic_upmix.c
-│   │   │   ├── track_mixer.c
-│   │   │   ├── lua_filters.c
-│   │   │   └── ladspa_integration.c
-├── examples/
-│   ├── lua_filters/
-│   │   ├── basic_eq.lua
-│   │   └── delay_effect.lua
-├── tests/
-│   ├── test_3d_audio.c
-│   ├── test_prologic_upmix.c
-│   └── test_track_mixer.c
-├── LICENSE
-├── README.md
-└── CONTRIBUTING.md
+## 🚀 Features
+
+### 🎚️ 16-Band Equalizer
+
+* Real-time audio filtering using high-performance C++ DSP compiled to WASM.
+* User-adjustable 16-band control with smooth sliders.
+* Toggle between:
+
+  * Built-in EQ presets (Rock, Jazz, Classical, etc.)
+  * Custom presets imported via `.lua` scripts.
+* Export current EQ configuration to Lua format.
+
+### 🌌 Spatializer
+
+* Adds stereo widening, room reverb, and 3D simulation effects.
+* Toggle between built-in spatial presets and customizable parameter control.
+* Controlled using Poweramp-style UI variables (e.g., depth, width, presence).
+
+### 🗂️ Lua Preset Library
+
+* Each filter maintains its own dedicated preset library.
+* Lua presets support structured data (e.g., gain per band/frequency).
+* Lua interpreted in-browser using Fengari (Lua VM in JS/Web).
+
+### 💡 Poweramp-Inspired UI
+
+* Smooth, animated UI mimicking Poweramp's control panel.
+* Built in modern HTML/CSS with responsive sliders and toggles.
+* Accessible from Chrome Extension popup.
+
+---
+
+## 🛠️ Tech Stack
+
+| Component      | Technology                                        |
+| -------------- | ------------------------------------------------- |
+| Audio Filters  | C++ → WebAssembly (via Emscripten)                |
+| UI             | HTML, CSS, JS (Popup + DOM Control)               |
+| Presets Engine | Lua scripts (Fengari VM)                          |
+| Audio Hooking  | Web Audio API + Content Script                    |
+| Chrome APIs    | Manifest V3, `chrome.runtime`, `chrome.scripting` |
+
+---
+
+## 📁 Folder Structure
+
+```py
+Super-Dribble/
+│
+├── manifest.json                    # Chrome extension config
+├── background.js                    # Service worker logic
+├── content.js                       # Injected into tabs, applies audio hooks
+├── popup/
+│   ├── popup.html                   # UI with sliders & preset toggles
+│   ├── popup.css                    # Poweramp-like visual styling
+│   └── popup.js                     # Handles UI and messaging
+│
+├── icons/                           # Extension icon assets
+│   └── icon128.png
+│
+├── wasm/
+│   ├── equalizer/
+│   │   ├── equalizer.cpp            # 16-band EQ filter logic
+│   │   ├── equalizer.wasm
+│   │   ├── equalizer.js             # JS glue for WASM
+│   │   └── presets.lua              # Built-in presets
+│   ├── spatializer/
+│   │   ├── spatializer.cpp          # Spatial effect logic (reverb, stereo widening)
+│   │   ├── spatializer.wasm
+│   │   ├── spatializer.js
+│   │   └── presets.lua
+│
+├── lua/
+│   ├── fengari.min.js               # Lua VM (fengari or lua.vm.js)
+│   ├── parser.js                    # Parse/import/export Lua presets
+│
+├── utils/
+│   ├── eq-controller.js             # JS control layer for EQ
+│   ├── spatial-controller.js       # JS control for spatializer
+│   └── preset-utils.js             # Helper functions to convert JS ⇄ Lua
+│
+└── README.md
 ```
 
-## Features
+---
 
-1.  **Immersive 3D Audio Effects:**
-    * Implementation inspired by SRS WoW, utilizing Head-Related Transfer Functions (HRTFs).
-    * Frequency-dependent filtering and precise delays for spatial perception.
-    * Adjustable stereo widening and bass enhancement parameters.
-2.  **Dolby Prologic-II Upmixing:**
-    * Matrix-based upmixing from stereo to 5-channel surround sound.
-    * Supports "Movie Mode" (dialogue clarity, ambience) and "Music Mode" (balanced distribution).
-3.  **Audio Track Mixing and Transitions:**
-    * Level balancing and panning for multiple audio tracks.
-    * Smooth fade-in/fade-out and crossfade transition effects.
-4.  **Lua Scripting Framework:**
-    * Create custom audio filters using the Lua scripting language.
-    * User-friendly API for accessing and manipulating raw audio data.
-    * Includes example scripts (Equalizer, Delay).
-5.  **LADSPA Plugin Integration:**
-    * Load and utilize external LADSPA (Linux Audio Developer's Simple Plugin API) plugins.
-    * Initially targets Linux systems, with potential future expansion.
+## 📌 How to Use
 
-## Installation
+1. Load the unpacked extension from `chrome://extensions`.
+2. Open any website that plays audio.
+3. Click the Super-Dribble icon → Adjust EQ/spatializer settings.
+4. Import or export presets using Lua files from the popup.
 
-**(Instructions on how to compile the source code and integrate these modules into a VLC build will be provided here once development progresses.)**
+---
 
-1.  Clone the repository:
-    ```bash
-    git clone [https://github.com/your-username/Advanced-VLC-Audio-Filters.git](https://github.com/your-username/Advanced-VLC-Audio-Filters.git)
-    ```
-2.  **(Build steps specific to VLC module compilation will follow)**
-3.  **(Instructions for placing compiled modules into the correct VLC directory)**
+## 🧪 Dev Notes
 
-## Usage
+* **WASM build** via Emscripten:
 
-Once installed, the filters can typically be accessed via VLC's Audio Effects & Filters settings.
+  ```bash
+  emcc equalizer.cpp -o equalizer.js -s MODULARIZE=1 -s ENVIRONMENT=web -s EXPORTED_FUNCTIONS="['_process']"
+  ```
+* Use `chrome.runtime.sendMessage` to communicate between popup and content scripts.
+* Lua parser is embedded using Fengari: [https://fengari.io](https://fengari.io)
 
-* Detailed instructions on enabling and configuring each filter can be found in the [User Guide](docs/user_guide.md).
-* Examples for the Lua scripting framework are available in the `examples/lua_filters/` directory.
+---
 
-## Goals
+## 🔮 Future Enhancements
 
-* Implement high-quality 3D audio using HRTF processing.
-* Develop Dolby Prologic-II upmixing (Movie/Music modes).
-* Enable audio track mixing with level control and transitions.
-* Create a Lua scripting framework for user-defined filters.
-* Integrate LADSPA plugin support.
-* Port the MPlayer volume filter as a qualification task.
+* Visualizer for waveform and frequency spectrum.
+* Advanced preset manager with user profiles.
+* Audio recording & playback options.
+* Dark mode toggle.
+
+---
+
+## 👨‍💻 Author & Credits
+
+Built by audio engineering and web extension enthusiasts.
+Inspired by Poweramp’s iconic DSP control aesthetics.
+
+---
+
 
 ## Contributing
 

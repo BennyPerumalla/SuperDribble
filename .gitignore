@@ -1,0 +1,25 @@
+# VS Code settings
+.vscode/
+*.code-workspace
+
+# OS and temp files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Web build artifacts
+dist/
+build/
+
+# Node / Web
+node_modules/
+
+# Compiled WASM output
+*.wasm
+*.js.mem
+*.tmp
+
+# Lua backups
+*.bak
