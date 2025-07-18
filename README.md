@@ -48,41 +48,54 @@
 ---
 
 ## 📁 Folder Structure
-
 ```py
 Super-Dribble/
 │
-├── manifest.json                    # Chrome extension config
-├── background.js                    # Service worker logic
-├── content.js                       # Injected into tabs, applies audio hooks
-├── popup/
-│   ├── popup.html                   # UI with sliders & preset toggles
-│   ├── popup.css                    # Poweramp-like visual styling
-│   └── popup.js                     # Handles UI and messaging
+├── manifest.json                    # Chrome extension config
+├── background.js                    # Service worker logic
+├── content.js                       # Injected into tabs, applies audio hooks
 │
-├── icons/                           # Extension icon assets
-│   └── icon128.png
+├── UI/
+│   └── Super-Dribble/
+│       ├── components/
+│       │   ├── EqualizerSlider.jsx        # Equalizer slider component
+│       │   ├── PresetSelect.jsx           # Preset selection dropdown
+│       │   ├── SpatializerToggle.jsx      # Stereo/reverb toggle
+│       │   └── ...                        # Other UI components
+│       ├── pages/
+│       │   ├── Main.jsx                   # Main extension popup UI
+│       │   └── Settings.jsx               # User settings
+│       ├── App.jsx                        # UI root entrypoint
+│       ├── index.js                       # React DOM boot
+│       ├── styles/
+│       │   ├── poweramp.css               # Poweramp-like visual style
+│       │   └── ...                        # Other styles
+│       └── assets/
+│           └── ui_logo.png                # UI-specific logo/icon
+│
+├── icons/                           # Extension icon assets
+│   └── icon128.png
 │
 ├── wasm/
-│   ├── equalizer/
-│   │   ├── equalizer.cpp            # 16-band EQ filter logic
-│   │   ├── equalizer.wasm
-│   │   ├── equalizer.js             # JS glue for WASM
-│   │   └── presets.lua              # Built-in presets
-│   ├── spatializer/
-│   │   ├── spatializer.cpp          # Spatial effect logic (reverb, stereo widening)
-│   │   ├── spatializer.wasm
-│   │   ├── spatializer.js
-│   │   └── presets.lua
+│   ├── equalizer/
+│   │   ├── equalizer.cpp            # 16-band EQ filter logic
+│   │   ├── equalizer.wasm
+│   │   ├── equalizer.js             # JS glue for WASM
+│   │   └── presets.lua              # Built-in presets
+│   ├── spatializer/
+│   │   ├── spatializer.cpp          # Spatial effect logic (reverb, stereo widening)
+│   │   ├── spatializer.wasm
+│   │   ├── spatializer.js
+│   │   └── presets.lua
 │
 ├── lua/
-│   ├── fengari.min.js               # Lua VM (fengari or lua.vm.js)
-│   ├── parser.js                    # Parse/import/export Lua presets
+│   ├── fengari.min.js               # Lua VM (fengari or lua.vm.js)
+│   ├── parser.js                    # Parse/import/export Lua presets
 │
 ├── utils/
-│   ├── eq-controller.js             # JS control layer for EQ
-│   ├── spatial-controller.js       # JS control for spatializer
-│   └── preset-utils.js             # Helper functions to convert JS ⇄ Lua
+│   ├── eq-controller.js             # JS control layer for EQ
+│   ├── spatial-controller.js        # JS control for spatializer
+│   └── preset-utils.js              # Helper functions to convert JS ⇄ Lua
 │
 └── README.md
 ```
