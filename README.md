@@ -146,4 +146,5 @@ Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) fi
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE) (or specify another, e.g., GPL/LGPL if required by VLC integration).
+Super-Dribble – Copyright (C) 2025 Benny Perualla, Irshad Siddi
+This is licensed under the [GNU GPL](LICENSE) .
