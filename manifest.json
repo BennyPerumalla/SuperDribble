@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "Super-Dribble",
+  "version": "0.1.0",
+  "description": "An advanced audio equalizer and spatializer for your browser.",
+  "permissions": [
+    "activeTab",
+    "tabCapture",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "UI/Super-Dribble/index.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "wasm/equalizer/equalizer.wasm",
+        "wasm/equalizer/presets.lua",
+        "wasm/spatializer/spatializer.wasm",
+        "wasm/spatializer/spatializer_presets.lua"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
