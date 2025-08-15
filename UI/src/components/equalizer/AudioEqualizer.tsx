@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { EqualizerBand } from "./EqualizerBand";
 import { SpectrumAnalyzer } from "./SpectrumAnalyzer";
@@ -6,6 +6,7 @@ import { PlaybackControls } from "./PlaybackControls";
 import { VolumeControl } from "./VolumeControl";
 import { PresetSelector, EQPreset } from "./PresetSelector";
 import { Settings, Power } from "lucide-react";
+import { audioService } from "@/lib/audioService";
 
 const FREQUENCY_BANDS = [
   "32Hz",
@@ -62,40 +63,98 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
   const [isRepeatEnabled, setIsRepeatEnabled] = useState(false);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [isPowerOn, setIsPowerOn] = useState(true);
+  const [isAudioInitialized, setIsAudioInitialized] = useState(false);
   const [currentTrack] = useState({
     title: "Neon Dreams",
     artist: "Synthwave Station",
     duration: "3:42",
   });
 
-  const handleBandChange = useCallback((index: number, value: number) => {
+  const handleBandChange = useCallback(async (index: number, value: number) => {
     setEqValues((prev) => {
       const newValues = [...prev];
       newValues[index] = value;
       return newValues;
     });
     setActivePreset(null); // Clear preset when manually adjusting
-  }, []);
+    
+    // Update audio processing if available
+    if (audioService.isAvailable() && isAudioInitialized) {
+      await audioService.updateEQBand(index, value);
+    }
+  }, [isAudioInitialized]);
 
-  const handlePresetSelect = useCallback((preset: EQPreset) => {
+  const handlePresetSelect = useCallback(async (preset: EQPreset) => {
     setEqValues(preset.values);
     setActivePreset(preset.name);
-  }, []);
+    
+    // Update audio processing if available
+    if (audioService.isAvailable() && isAudioInitialized) {
+      await audioService.updateEQPreset(preset);
+    }
+  }, [isAudioInitialized]);
 
-  const handleReset = useCallback(() => {
-    setEqValues(new Array(10).fill(0));
+  const handleReset = useCallback(async () => {
+    const resetValues = new Array(10).fill(0);
+    setEqValues(resetValues);
     setActivePreset(null);
-  }, []);
+    
+    // Update audio processing if available
+    if (audioService.isAvailable() && isAudioInitialized) {
+      await audioService.updateEQPreset({ name: 'Flat', values: resetValues });
+    }
+  }, [isAudioInitialized]);
 
   const handleVolumeChange = useCallback(
-    (newVolume: number) => {
+    async (newVolume: number) => {
       setVolume(newVolume);
       if (newVolume > 0 && isMuted) {
         setIsMuted(false);
       }
+      
+      // Update audio processing if available
+      if (audioService.isAvailable() && isAudioInitialized) {
+        await audioService.updateVolume(newVolume);
+      }
     },
-    [isMuted],
+    [isMuted, isAudioInitialized],
   );
+
+  const handleToggleMute = useCallback(async () => {
+    const newMutedState = !isMuted;
+    setIsMuted(newMutedState);
+    
+    // Update audio processing if available
+    if (audioService.isAvailable() && isAudioInitialized) {
+      await audioService.updateMute(newMutedState, volume);
+    }
+  }, [isMuted, volume, isAudioInitialized]);
+
+  // Initialize audio capture when component mounts
+  useEffect(() => {
+    const initializeAudio = async () => {
+      if (audioService.isAvailable()) {
+        try {
+          const success = await audioService.startCapture();
+          setIsAudioInitialized(success);
+          if (success) {
+            console.log('Audio capture initialized successfully');
+          }
+        } catch (error) {
+          console.error('Failed to initialize audio capture:', error);
+        }
+      }
+    };
+
+    initializeAudio();
+
+    // Cleanup on unmount
+    return () => {
+      if (audioService.isAvailable()) {
+        audioService.stopCapture();
+      }
+    };
+  }, []);
 
   if (!isPowerOn) {
     return (
@@ -182,7 +241,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
             volume={volume}
             isMuted={isMuted}
             onVolumeChange={handleVolumeChange}
-            onToggleMute={() => setIsMuted(!isMuted)}
+            onToggleMute={handleToggleMute}
           />
         </div>
 
