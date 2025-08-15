@@ -20,7 +20,6 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
  *****************************************************************************/
 
-#include <vector>
 #include <cmath>
 
 const double PI = 3.14159265358979323846;

@@ -33,6 +33,7 @@
 presets = {
   {
     name = "Flat",
+    description = "Neutral response with no frequency adjustments.",
     bands = {
       { frequency = 31,    gain = 0.0, q = 1.0 },
       { frequency = 62,    gain = 0.0, q = 1.0 },
@@ -50,6 +51,138 @@ presets = {
       { frequency = 256,   gain = 0.0, q = 1.0 },
       { frequency = 512,   gain = 0.0, q = 1.0 },
       { frequency = 1024,  gain = 0.0, q = 1.0 }
+    }
+  },
+  {
+    name = "Rock",
+    description = "Enhanced bass and treble for rock music with punchy mids.",
+    bands = {
+      { frequency = 31,    gain = 4.0,  q = 1.2 },
+      { frequency = 62,    gain = 3.0,  q = 1.0 },
+      { frequency = 125,   gain = -1.0, q = 1.0 },
+      { frequency = 250,   gain = -2.0, q = 1.0 },
+      { frequency = 500,   gain = -1.0, q = 1.0 },
+      { frequency = 1000,  gain = 2.0,  q = 1.5 },
+      { frequency = 2000,  gain = 4.0,  q = 1.8 },
+      { frequency = 4000,  gain = 6.0,  q = 2.0 },
+      { frequency = 8000,  gain = 6.0,  q = 2.5 },
+      { frequency = 16000, gain = 5.0,  q = 2.0 },
+      { frequency = 32,    gain = 0.0,  q = 1.0 },
+      { frequency = 64,    gain = 0.0,  q = 1.0 },
+      { frequency = 128,   gain = 0.0,  q = 1.0 },
+      { frequency = 256,   gain = 0.0,  q = 1.0 },
+      { frequency = 512,   gain = 0.0,  q = 1.0 },
+      { frequency = 1024,  gain = 0.0,  q = 1.0 }
+    }
+  },
+  {
+    name = "Pop",
+    description = "Balanced sound with slight bass boost and clear vocals.",
+    bands = {
+      { frequency = 31,    gain = -1.0, q = 1.0 },
+      { frequency = 62,    gain = 2.0,  q = 1.2 },
+      { frequency = 125,   gain = 4.0,  q = 1.5 },
+      { frequency = 250,   gain = 4.0,  q = 1.8 },
+      { frequency = 500,   gain = 2.0,  q = 1.5 },
+      { frequency = 1000,  gain = 0.0,  q = 1.0 },
+      { frequency = 2000,  gain = -1.0, q = 1.2 },
+      { frequency = 4000,  gain = -1.0, q = 1.5 },
+      { frequency = 8000,  gain = 0.0,  q = 1.8 },
+      { frequency = 16000, gain = 1.0,  q = 2.0 },
+      { frequency = 32,    gain = 0.0,  q = 1.0 },
+      { frequency = 64,    gain = 0.0,  q = 1.0 },
+      { frequency = 128,   gain = 0.0,  q = 1.0 },
+      { frequency = 256,   gain = 0.0,  q = 1.0 },
+      { frequency = 512,   gain = 0.0,  q = 1.0 },
+      { frequency = 1024,  gain = 0.0,  q = 1.0 }
+    }
+  },
+  {
+    name = "Jazz",
+    description = "Warm, smooth sound with enhanced midrange and controlled highs.",
+    bands = {
+      { frequency = 31,    gain = 3.0,  q = 1.0 },
+      { frequency = 62,    gain = 2.0,  q = 1.2 },
+      { frequency = 125,   gain = 1.0,  q = 1.5 },
+      { frequency = 250,   gain = 2.0,  q = 1.8 },
+      { frequency = 500,   gain = -1.0, q = 1.5 },
+      { frequency = 1000,  gain = -1.0, q = 1.2 },
+      { frequency = 2000,  gain = 0.0,  q = 1.0 },
+      { frequency = 4000,  gain = 1.0,  q = 1.5 },
+      { frequency = 8000,  gain = 2.0,  q = 2.0 },
+      { frequency = 16000, gain = 3.0,  q = 2.5 },
+      { frequency = 32,    gain = 0.0,  q = 1.0 },
+      { frequency = 64,    gain = 0.0,  q = 1.0 },
+      { frequency = 128,   gain = 0.0,  q = 1.0 },
+      { frequency = 256,   gain = 0.0,  q = 1.0 },
+      { frequency = 512,   gain = 0.0,  q = 1.0 },
+      { frequency = 1024,  gain = 0.0,  q = 1.0 }
+    }
+  },
+  {
+    name = "Classical",
+    description = "Natural, transparent sound with subtle enhancement for orchestral music.",
+    bands = {
+      { frequency = 31,    gain = 4.0,  q = 1.0 },
+      { frequency = 62,    gain = 3.0,  q = 1.2 },
+      { frequency = 125,   gain = 2.0,  q = 1.5 },
+      { frequency = 250,   gain = 1.0,  q = 1.8 },
+      { frequency = 500,   gain = -1.0, q = 1.5 },
+      { frequency = 1000,  gain = -2.0, q = 1.2 },
+      { frequency = 2000,  gain = -2.0, q = 1.0 },
+      { frequency = 4000,  gain = -1.0, q = 1.5 },
+      { frequency = 8000,  gain = 2.0,  q = 2.0 },
+      { frequency = 16000, gain = 3.0,  q = 2.5 },
+      { frequency = 32,    gain = 0.0,  q = 1.0 },
+      { frequency = 64,    gain = 0.0,  q = 1.0 },
+      { frequency = 128,   gain = 0.0,  q = 1.0 },
+      { frequency = 256,   gain = 0.0,  q = 1.0 },
+      { frequency = 512,   gain = 0.0,  q = 1.0 },
+      { frequency = 1024,  gain = 0.0,  q = 1.0 }
+    }
+  },
+  {
+    name = "Electronic",
+    description = "Enhanced bass and treble for electronic music with punchy dynamics.",
+    bands = {
+      { frequency = 31,    gain = 6.0,  q = 1.2 },
+      { frequency = 62,    gain = 4.0,  q = 1.0 },
+      { frequency = 125,   gain = 1.0,  q = 1.5 },
+      { frequency = 250,   gain = 0.0,  q = 1.8 },
+      { frequency = 500,   gain = -2.0, q = 1.5 },
+      { frequency = 1000,  gain = 2.0,  q = 1.2 },
+      { frequency = 2000,  gain = 1.0,  q = 1.0 },
+      { frequency = 4000,  gain = 2.0,  q = 1.5 },
+      { frequency = 8000,  gain = 6.0,  q = 2.0 },
+      { frequency = 16000, gain = 7.0,  q = 2.5 },
+      { frequency = 32,    gain = 0.0,  q = 1.0 },
+      { frequency = 64,    gain = 0.0,  q = 1.0 },
+      { frequency = 128,   gain = 0.0,  q = 1.0 },
+      { frequency = 256,   gain = 0.0,  q = 1.0 },
+      { frequency = 512,   gain = 0.0,  q = 1.0 },
+      { frequency = 1024,  gain = 0.0,  q = 1.0 }
+    }
+  },
+  {
+    name = "Hip Hop",
+    description = "Strong bass emphasis with clear vocals and controlled highs.",
+    bands = {
+      { frequency = 31,    gain = 7.0,  q = 1.2 },
+      { frequency = 62,    gain = 5.0,  q = 1.0 },
+      { frequency = 125,   gain = 1.0,  q = 1.5 },
+      { frequency = 250,   gain = 3.0,  q = 1.8 },
+      { frequency = 500,   gain = -1.0, q = 1.5 },
+      { frequency = 1000,  gain = -1.0, q = 1.2 },
+      { frequency = 2000,  gain = 1.0,  q = 1.0 },
+      { frequency = 4000,  gain = 2.0,  q = 1.5 },
+      { frequency = 8000,  gain = 3.0,  q = 2.0 },
+      { frequency = 16000, gain = 4.0,  q = 2.5 },
+      { frequency = 32,    gain = 0.0,  q = 1.0 },
+      { frequency = 64,    gain = 0.0,  q = 1.0 },
+      { frequency = 128,   gain = 0.0,  q = 1.0 },
+      { frequency = 256,   gain = 0.0,  q = 1.0 },
+      { frequency = 512,   gain = 0.0,  q = 1.0 },
+      { frequency = 1024,  gain = 0.0,  q = 1.0 }
     }
   },
   {
