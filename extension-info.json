@@ -1,0 +1,13 @@
+{
+  "name": "Super Dribble",
+  "version": "1.0.0",
+  "description": "Advanced audio equalizer and spatializer Chrome extension",
+  "buildDate": "2025-08-15T12:46:19.117Z",
+  "features": [
+    "WebAssembly DSP Engine",
+    "Lua Preset System",
+    "16-band Parametric Equalizer",
+    "Spatializer Effects",
+    "Real-time Audio Processing"
+  ]
+}
