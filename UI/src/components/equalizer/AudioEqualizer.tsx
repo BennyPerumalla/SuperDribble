@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { EqualizerBand } from "./EqualizerBand";
-import { SpectrumAnalyzer } from "./SpectrumAnalyzer";
 import { PlaybackControls } from "./PlaybackControls";
 import { VolumeControl } from "./VolumeControl";
 import { PresetSelector, EQPreset } from "./PresetSelector";
@@ -236,7 +235,6 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Spectrum Analyzer */}
         <div className="space-y-6">
-          <SpectrumAnalyzer isPlaying={isPlaying} />
           <VolumeControl
             volume={volume}
             isMuted={isMuted}
