@@ -1,136 +1,191 @@
-# 🎧 Super-Dribble: Real-Time Audio Enhancement Extension
+# Super Dribble Audio Amplifier
 
-**Super-Dribble** is a powerful, browser-based audio extension that brings real-time audio processing to Chrome/Brave users. It delivers an immersive listening experience through advanced **equalizer** and **spatializer** filters powered by **WebAssembly (WASM)** and **C/C++ DSP code**. The extension also supports dynamic Lua-scripted preset import/export for full customization.
+A Chrome extension that provides real-time audio amplification and equalization for any tab's audio content.
 
+## Features
 
-## 🚀 Features
+- **10-Band Parametric Equalizer**: Fine-tune audio frequencies from 32Hz to 16kHz
+- **Volume Control**: Adjust volume levels with real-time feedback
+- **Preset Equalizer Settings**: Pre-configured settings for different music genres
+- **Real-time Audio Processing**: Process audio from any tab using Web Audio API
+- **WebAssembly DSP Engine**: High-performance audio processing using C++ compiled to WASM
+- **Lua Preset System**: Dynamic preset loading and management using Lua scripts
+- **Spatializer Effects**: Stereo widening and reverb effects for immersive audio
+- **Modern UI**: Beautiful, responsive interface with dark theme
 
-### 🎚️ 16-Band Equalizer
+## Installation
 
-* Real-time audio filtering using high-performance C++ DSP compiled to WASM.
-* User-adjustable 16-band control with smooth sliders.
-* Toggle between:
+### Development Mode (Unpacked Extension)
 
-  * Built-in EQ presets (Rock, Jazz, Classical, etc.)
-  * Custom presets imported via `.lua` scripts.
-* Export current EQ configuration to Lua format.
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/BennyPerumalla/Super-dribble.git
+   cd Super-dribble
+   ```
 
-### 🌌 Spatializer
+2. Build the UI:
+   ```bash
+   cd UI
+   npm install
+   npm run build
+   cd ..
+   ```
 
-* Adds stereo widening, room reverb, and 3D simulation effects.
-* Toggle between built-in spatial presets and customizable parameter control.
-* Controlled using Poweramp-style UI variables (e.g., depth, width, presence).
+3. Load the extension in Chrome:
+   - Open Chrome and go to `chrome://extensions/`
+   - Enable "Developer mode" in the top right
+   - Click "Load unpacked"
+   - Select the root directory of this project
 
-### 🗂️ Lua Preset Library
+## Usage
 
-* Each filter maintains its own dedicated preset library.
-* Lua presets support structured data (e.g., gain per band/frequency).
-* Lua interpreted in-browser using Fengari (Lua VM in JS/Web).
+1. **Start Audio Capture**:
+   - Navigate to any webpage with audio (YouTube, Spotify, etc.)
+   - Click the Super Dribble extension icon in your browser toolbar
+   - The extension will automatically start capturing audio from the current tab
 
-### 💡 Poweramp-Inspired UI
+2. **Adjust Audio Settings**:
+   - **Volume**: Use the volume slider to adjust overall volume
+   - **Equalizer**: Drag the frequency band sliders to boost or cut specific frequencies
+   - **Presets**: Select from pre-configured equalizer settings (Rock, Pop, Jazz, etc.)
+   - **Mute**: Click the mute button to quickly silence audio
 
-* Smooth, animated UI mimicking Poweramp's control panel.
-* Built in modern HTML/CSS with responsive sliders and toggles.
-* Accessible from Chrome Extension popup.
+3. **Real-time Processing**:
+   - All changes are applied in real-time
+   - The spectrum analyzer shows visual feedback of the audio
+   - Settings persist until you change them or close the extension
 
----
+## Technical Details
 
-## 🛠️ Tech Stack
+### Architecture
 
-| Component      | Technology                                        |
-| -------------- | ------------------------------------------------- |
-| Audio Filters  | C++ → WebAssembly (via Emscripten)                |
-| UI             | HTML, CSS, JS (Popup + DOM Control)               |
-| Presets Engine | Lua scripts (Fengari VM)                          |
-| Audio Hooking  | Web Audio API + Content Script                    |
-| Chrome APIs    | Manifest V3, `chrome.runtime`, `chrome.scripting` |
+- **Background Script** (`background.js`): Handles audio capture and processing using Web Audio API
+- **Content Script** (`content.js`): Injected into web pages to ensure extension presence
+- **UI** (`UI/`): React-based popup interface with TypeScript
+- **Audio Processing**: 10-band parametric equalizer with biquad filters
 
----
+### Audio Processing Chain
 
-## 📁 Folder Structure
-
-```py
-Super-Dribble/
-│
-├── manifest.json                    # Chrome extension config
-├── background.js                    # Service worker logic
-├── content.js                       # Injected into tabs, applies audio hooks
-├── popup/
-│   ├── popup.html                   # UI with sliders & preset toggles
-│   ├── popup.css                    # Poweramp-like visual styling
-│   └── popup.js                     # Handles UI and messaging
-│
-├── icons/                           # Extension icon assets
-│   └── icon128.png
-│
-├── wasm/
-│   ├── equalizer/
-│   │   ├── equalizer.cpp            # 16-band EQ filter logic
-│   │   ├── equalizer.wasm
-│   │   ├── equalizer.js             # JS glue for WASM
-│   │   └── presets.lua              # Built-in presets
-│   ├── spatializer/
-│   │   ├── spatializer.cpp          # Spatial effect logic (reverb, stereo widening)
-│   │   ├── spatializer.wasm
-│   │   ├── spatializer.js
-│   │   └── presets.lua
-│
-├── lua/
-│   ├── fengari.min.js               # Lua VM (fengari or lua.vm.js)
-│   ├── parser.js                    # Parse/import/export Lua presets
-│
-├── utils/
-│   ├── eq-controller.js             # JS control layer for EQ
-│   ├── spatial-controller.js       # JS control for spatializer
-│   └── preset-utils.js             # Helper functions to convert JS ⇄ Lua
-│
-└── README.md
+```
+Tab Audio → MediaStreamSource → GainNode → BiquadFilter1 → ... → BiquadFilter10 → WASM DSP → Destination
 ```
 
----
+### WebAssembly Integration
 
-## 📌 How to Use
+The extension uses WebAssembly for high-performance audio processing:
 
-1. Load the unpacked extension from `chrome://extensions`.
-2. Open any website that plays audio.
-3. Click the Super-Dribble icon → Adjust EQ/spatializer settings.
-4. Import or export presets using Lua files from the popup.
+- **Equalizer WASM**: 16-band parametric equalizer with biquad filters
+- **Spatializer WASM**: Stereo widening and FDN reverb effects
+- **Lua Preset System**: Dynamic preset loading using Fengari Lua VM
 
----
+### Lua Preset System
 
-## 🧪 Dev Notes
+Presets are defined in Lua format for maximum flexibility:
 
-* **WASM build** via Emscripten:
+- **Equalizer Presets**: Frequency, gain, and Q factor for each band
+- **Spatializer Presets**: Width, decay, damping, and mix parameters
+- **Import/Export**: Save and load custom presets in Lua format
 
-  ```bash
-  emcc equalizer.cpp -o equalizer.js -s MODULARIZE=1 -s ENVIRONMENT=web -s EXPORTED_FUNCTIONS="['_process']"
-  ```
-* Use `chrome.runtime.sendMessage` to communicate between popup and content scripts.
-* Lua parser is embedded using Fengari: [https://fengari.io](https://fengari.io)
+### Permissions
 
----
+- `activeTab`: Access to the currently active tab
+- `tabCapture`: Capture audio from browser tabs
 
-## 🔮 Future Enhancements
+## Development
 
-* Visualizer for waveform and frequency spectrum.
-* Advanced preset manager with user profiles.
-* Audio recording & playback options.
-* Dark mode toggle.
+### Project Structure
 
----
+```
+Super-dribble/
+├── manifest.json              # Extension manifest
+├── background.js              # Service worker for audio processing
+├── content.js                # Content script
+├── icons/                    # Extension icons
+├── wasm/                     # WebAssembly modules
+│   ├── equalizer/
+│   │   ├── equalizer.cpp     # C++ equalizer implementation
+│   │   ├── equalizer.wasm    # Compiled WASM module
+│   │   ├── equalizer.js      # JavaScript glue code
+│   │   └── presets.lua       # Equalizer presets
+│   └── spatializer/
+│       ├── spatializer.cpp   # C++ spatializer implementation
+│       ├── spatializer.wasm  # Compiled WASM module
+│       ├── spatializer.js    # JavaScript glue code
+│       └── spatializer_presets.lua # Spatializer presets
+├── utils/
+│   └── lua-preset-parser.js  # Lua preset parser
+├── lua/
+│   └── fengari.min.js        # Lua VM for preset parsing
+├── UI/                       # React UI application
+│   ├── src/
+│   │   ├── components/       # UI components
+│   │   ├── lib/             # Utilities and services
+│   │   └── types/           # TypeScript declarations
+│   └── build/               # Compiled UI files
+├── README.md                # Project documentation
+├── INSTALLATION.md          # Installation guide
+├── build-wasm.js           # WASM build script
+└── verify-extension.js     # Extension verification script
+```
 
-## 👨‍💻 Author & Credits
+### Building
 
-Built by audio engineering and web extension enthusiasts.
-Inspired by Poweramp’s iconic DSP control aesthetics.
+#### UI Build
 
----
+To rebuild the UI after changes:
 
+```bash
+cd UI
+npm run build
+```
 
-## Contributing
+#### WASM Build
 
-Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) file for details on how to report issues, request features, and submit pull requests.
+To build the WebAssembly modules (requires Emscripten):
+
+```bash
+# Install Emscripten first: https://emscripten.org/docs/getting_started/downloads.html
+node build-wasm.js
+```
+
+If Emscripten is not available, placeholder files will be created automatically.
+
+### Testing
+
+1. Load the extension in Chrome
+2. Open a tab with audio content
+3. Click the extension icon
+4. Test all controls and verify audio changes
+
+## Troubleshooting
+
+### Audio Not Working
+
+1. Ensure the webpage has audio content
+2. Check that the extension has permission to capture tab audio
+3. Verify the extension is loaded in Chrome
+4. Check the browser console for error messages
+
+### Extension Not Loading
+
+1. Ensure all files are present in the project directory
+2. Verify the manifest.json is valid
+3. Check that the UI has been built (`UI/build/` directory exists)
+4. Reload the extension in Chrome
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE) (or specify another, e.g., GPL/LGPL if required by VLC integration).
+This project is licensed under the GNU Lesser General Public License v2.1.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## Author
+
+Benny Perumalla <benny01r@gmail.com>
+Irshad Siddi <mohammadirshadsiddi@gmail.com>
