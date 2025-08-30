@@ -12,6 +12,7 @@ Thumbs.db
 # Web build artifacts
 dist/
 build/
+UI/build/
 
 # Node / Web
 node_modules/

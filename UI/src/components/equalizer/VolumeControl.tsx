@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Volume2, VolumeX, Volume1 } from "lucide-react";
+import { VolumeX, Volume1, Volume2 } from "lucide-react";
 
 interface VolumeControlProps {
   volume: number;
@@ -18,20 +18,19 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
   className,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [tempVolume, setTempVolume] = useState(volume);
 
   const getVolumeIcon = () => {
     if (isMuted || volume === 0) return VolumeX;
     if (volume < 50) return Volume1;
     return Volume2;
   };
-
   const VolumeIcon = getVolumeIcon();
 
   return (
     <div
       className={cn(
         "flex items-center gap-4 p-4 rounded-xl",
-        "bg-gradient-to-r from-eq-surface to-eq-surface-light",
         "border border-eq-border",
         className,
       )}
@@ -40,7 +39,7 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
       <button
         onClick={onToggleMute}
         className={cn(
-          "p-2 rounded-lg transition-all duration-200",
+          "p-2 rounded-lg transition-all duration-150 ease-out",
           "hover:bg-eq-surface-light hover:scale-105",
           {
             "text-eq-danger": isMuted,
@@ -59,14 +58,14 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
         {/* Active Fill */}
         <div
           className={cn(
-            "absolute h-2 rounded-full transition-all duration-200",
+            "absolute h-2 rounded-full transition-[width] duration-100 ease-out",
             {
               "bg-gradient-to-r from-eq-volume to-eq-accent-glow": !isMuted,
               "bg-eq-danger": isMuted,
             },
           )}
           style={{
-            width: `${isMuted ? 0 : volume}%`,
+            width: `${isMuted ? 0 : (isDragging ? tempVolume : volume)}%`,
             boxShadow: !isMuted
               ? `0 0 8px hsla(var(--eq-volume), 0.4)`
               : "none",
@@ -79,10 +78,15 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
           min="0"
           max="100"
           step="1"
-          value={isMuted ? 0 : volume}
-          onChange={(e) => onVolumeChange(parseInt(e.target.value))}
+          value={isMuted ? 0 : (isDragging ? tempVolume : volume)}
+          onInput={(e) =>
+            setTempVolume(parseInt((e.target as HTMLInputElement).value))
+          }
           onMouseDown={() => setIsDragging(true)}
-          onMouseUp={() => setIsDragging(false)}
+          onMouseUp={(e) => {
+            setIsDragging(false);
+            onVolumeChange(parseInt((e.target as HTMLInputElement).value));
+          }}
           className={cn(
             "absolute inset-0 w-full h-full opacity-0 cursor-pointer",
             "focus:outline-none",
@@ -93,7 +97,7 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
         <div
           className={cn(
             "absolute w-5 h-5 rounded-full border-2 border-eq-background",
-            "transition-all duration-200 pointer-events-none",
+            "transition-transform transition-colors duration-150 ease-out pointer-events-none",
             {
               "bg-eq-volume shadow-lg shadow-eq-volume/50 scale-110":
                 !isMuted && (isDragging || volume > 0),
@@ -102,7 +106,7 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
             },
           )}
           style={{
-            left: `${isMuted ? 0 : volume}%`,
+            left: `${isMuted ? 0 : (isDragging ? tempVolume : volume)}%`,
             transform: "translateX(-50%)",
             top: "50%",
             marginTop: "-10px",
@@ -112,7 +116,7 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
 
       {/* Volume Percentage */}
       <div className="text-sm font-mono text-eq-text-dim w-12 text-right">
-        {isMuted ? "0%" : `${volume}%`}
+        {isMuted ? "0%" : `${isDragging ? tempVolume : volume}%`}
       </div>
     </div>
   );
