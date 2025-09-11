@@ -43,73 +43,98 @@ async function initializeWASM() {
 }
 
 // Initialize audio processing
-function initializeAudioProcessing(stream) {
-  if (audioContext) {
-    audioContext.close();
+async function initializeAudioProcessing(stream) {
+  try {
+    // Clean up existing audio context
+    if (audioContext) {
+      await audioContext.close();
+    }
+
+    // Create new audio context
+    audioContext = new AudioContext();
+    
+    // Resume audio context if suspended (required for user gesture)
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume();
+    }
+
+    audioStream = stream;
+    sourceNode = audioContext.createMediaStreamSource(stream);
+
+    // Create gain node for volume control
+    gainNode = audioContext.createGain();
+    gainNode.gain.setValueAtTime(0.75, audioContext.currentTime); // Default 75% volume
+
+    // Create 10 biquad filter nodes for equalizer bands
+    eqNodes = FREQUENCY_BANDS.map(frequency => {
+      const filter = audioContext.createBiquadFilter();
+      filter.type = 'peaking';
+      filter.frequency.setValueAtTime(frequency, audioContext.currentTime);
+      filter.Q.setValueAtTime(1.0, audioContext.currentTime);
+      filter.gain.setValueAtTime(0, audioContext.currentTime); // Start flat
+      return filter;
+    });
+
+    // Connect the audio graph: source -> gain -> eq1 -> eq2 -> ... -> eq10 -> destination
+    let currentNode = sourceNode;
+    currentNode.connect(gainNode);
+    currentNode = gainNode;
+    
+    eqNodes.forEach(filter => {
+      currentNode.connect(filter);
+      currentNode = filter;
+    });
+    
+    currentNode.connect(audioContext.destination);
+    
+    isProcessing = true;
+    console.log('Audio processing initialized successfully');
+    console.log('Audio context state:', audioContext.state);
+    console.log('Sample rate:', audioContext.sampleRate);
+    
+  } catch (error) {
+    console.error('Error initializing audio processing:', error);
+    isProcessing = false;
   }
-
-  audioContext = new AudioContext();
-  audioStream = stream;
-  sourceNode = audioContext.createMediaStreamSource(stream);
-
-  // Create gain node for volume control
-  gainNode = audioContext.createGain();
-  gainNode.gain.setValueAtTime(0.75, audioContext.currentTime); // Default 75% volume
-
-  // Create 10 biquad filter nodes for equalizer bands
-  eqNodes = FREQUENCY_BANDS.map(frequency => {
-    const filter = audioContext.createBiquadFilter();
-    filter.type = 'peaking';
-    filter.frequency.setValueAtTime(frequency, audioContext.currentTime);
-    filter.Q.setValueAtTime(1.0, audioContext.currentTime);
-    filter.gain.setValueAtTime(0, audioContext.currentTime); // Start flat
-    return filter;
-  });
-
-  // Connect the audio graph: source -> gain -> eq1 -> eq2 -> ... -> eq10 -> destination
-  let currentNode = sourceNode;
-  currentNode.connect(gainNode);
-  currentNode = gainNode;
-  
-  eqNodes.forEach(filter => {
-    currentNode.connect(filter);
-    currentNode = filter;
-  });
-  
-  currentNode.connect(audioContext.destination);
-  
-  isProcessing = true;
-  console.log('Audio processing initialized');
 }
 
-// Start audio capture from the active tab
-async function startAudioCapture(tabId) {
+// Process audio stream from popup
+async function processAudioStream(stream) {
   if (isProcessing) {
     console.log('Audio already being processed');
-    return;
+    return false;
   }
 
   // Initialize WASM modules if not already done
   if (!equalizerWasm || !spatializerWasm) {
-    await initializeWASM();
+    const wasmInitialized = await initializeWASM();
+    if (!wasmInitialized) {
+      console.error('Failed to initialize WASM modules');
+      return false;
+    }
   }
 
-  chrome.tabCapture.capture({ 
-    audio: true, 
-    video: false 
-  }, (stream) => {
-    if (chrome.runtime.lastError) {
-      console.error('Tab capture error:', chrome.runtime.lastError);
-      return;
-    }
+  try {
+    console.log('Processing audio stream from popup:', stream);
     
     if (!stream) {
-      console.error('No audio stream received');
-      return;
+      throw new Error('No audio stream provided');
     }
 
-    initializeAudioProcessing(stream);
-  });
+    console.log('Stream tracks:', stream.getTracks().map(track => ({
+      kind: track.kind,
+      enabled: track.enabled,
+      muted: track.muted,
+      readyState: track.readyState
+    })));
+    
+    // Initialize audio processing
+    await initializeAudioProcessing(stream);
+    return true;
+  } catch (error) {
+    console.error('Error processing audio stream:', error);
+    return false;
+  }
 }
 
 // Stop audio processing
@@ -137,10 +162,15 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
   console.log('Received message:', request);
 
   switch (request.action) {
-    case 'start_capture':
-      startAudioCapture(request.tabId);
-      sendResponse({ success: true });
-      break;
+    case 'process_audio_stream':
+      try {
+        const success = await processAudioStream(request.stream);
+        sendResponse({ success: success, message: success ? 'Audio stream processed' : 'Failed to process audio stream' });
+      } catch (error) {
+        console.error('Error in process_audio_stream:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+      return true; // Keep the message channel open for async response
 
     case 'stop_capture':
       stopAudioProcessing();
