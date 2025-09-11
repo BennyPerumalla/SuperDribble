@@ -15,6 +15,13 @@ declare namespace chrome {
     const onMessage: {
       addListener(callback: (request: any, sender: any, sendResponse: any) => void): void;
     };
+    const lastError: {
+      message: string;
+    } | undefined;
+  }
+
+  namespace tabCapture {
+    function capture(options: { audio: boolean; video: boolean }, callback: (stream: MediaStream | null) => void): void;
   }
 }
 
