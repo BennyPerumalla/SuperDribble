@@ -65,10 +65,11 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
   const [isAudioInitialized, setIsAudioInitialized] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [currentTrack] = useState({
-    title: "Neon Dreams",
-    artist: "Synthwave Station",
-    duration: "3:42",
+  const [currentTrack, setCurrentTrack] = useState({
+    title: "Unknown Title",
+    artist: "",
+    duration: "--:--",
+    appName: "",
   });
 
   const handleBandChange = useCallback(async (index: number, value: number) => {
@@ -150,6 +151,19 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
       if (success) {
         console.log('Audio capture initialized successfully');
         setConnectionError(null);
+
+        // Fetch initial media info from the page
+        const info = await audioService.getMediaInfo();
+        if (info) {
+          setIsPlaying(!!info.isPlaying);
+          const duration = info.duration && info.duration > 0 ? formatTime(info.duration) : '--:--';
+          setCurrentTrack({
+            title: info.title || 'Unknown Title',
+            artist: info.artist || info.appName || '',
+            duration,
+            appName: info.appName || '',
+          });
+        }
       } else {
         console.warn('Audio capture initialization failed');
         setConnectionError('Failed to start audio capture');
@@ -162,6 +176,70 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
       setIsConnecting(false);
     }
   }, []);
+
+  // Listen for media updates from the content script
+  useEffect(() => {
+    const listener = (request: any, sender: any) => {
+      if (request && request.action === 'media_state_update') {
+        const capturedId = audioService.getCapturedTabId();
+        const senderId = sender?.tab?.id ?? null;
+        // Accept updates if we don't know the tab yet, or if it matches.
+        if (capturedId && senderId && capturedId !== senderId) return;
+
+        // Update playback state
+        if (typeof request.isPlaying === 'boolean') setIsPlaying(request.isPlaying);
+
+        // Update track metadata
+        const title = request.title || 'Unknown Title';
+        const artist = request.artist || request.appName || '';
+        const durationSec = Number(request.duration) || 0;
+        const duration = durationSec > 0 ? formatTime(durationSec) : '--:--';
+        setCurrentTrack({
+          title,
+          artist,
+          duration,
+          appName: request.appName || '',
+        });
+      }
+    };
+
+    if (audioService.isAvailable()) {
+      chrome.runtime.onMessage.addListener(listener);
+    }
+    return () => {
+      try {
+        if (audioService.isAvailable()) {
+          // @ts-ignore
+          chrome.runtime.onMessage.removeListener?.(listener);
+        }
+      } catch {}
+    };
+  }, []);
+
+  // Periodic polling fallback in case events are missed
+  useEffect(() => {
+    if (!audioService.isAvailable()) return;
+    if (!isAudioInitialized) return;
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      try {
+        const info = await audioService.getMediaInfo();
+        if (cancelled || !info) return;
+        setIsPlaying(!!info.isPlaying);
+        const duration = info.duration && info.duration > 0 ? formatTime(info.duration) : '--:--';
+        setCurrentTrack({
+          title: info.title || 'Unknown Title',
+          artist: info.artist || info.appName || '',
+          duration,
+          appName: info.appName || '',
+        });
+      } catch {}
+    }, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isAudioInitialized]);
 
   // Check audio service availability on mount
   useEffect(() => {
@@ -256,7 +334,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
           <div>
             <div className="text-eq-text font-medium">{currentTrack.title}</div>
             <div className="text-eq-text-dim text-sm">
-              {currentTrack.artist}
+              {currentTrack.artist || currentTrack.appName}
             </div>
           </div>
           <div className="text-eq-text-dim font-mono text-sm">
@@ -312,9 +390,21 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
         <div className="space-y-6">
           <PlaybackControls
             isPlaying={isPlaying}
-            onPlayPause={() => setIsPlaying(!isPlaying)}
-            onPrevious={() => console.log("Previous track")}
-            onNext={() => console.log("Next track")}
+            onPlayPause={async () => {
+              if (audioService.isAvailable()) {
+                await audioService.controlPlayback('toggle');
+              }
+            }}
+            onPrevious={async () => {
+              if (audioService.isAvailable()) {
+                await audioService.controlPlayback('previous');
+              }
+            }}
+            onNext={async () => {
+              if (audioService.isAvailable()) {
+                await audioService.controlPlayback('next');
+              }
+            }}
             onShuffle={() => setIsShuffleEnabled(!isShuffleEnabled)}
             onRepeat={() => setIsRepeatEnabled(!isRepeatEnabled)}
             isShuffleEnabled={isShuffleEnabled}
@@ -402,3 +492,10 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
     </div>
   );
 };
+
+// Utility to format seconds to mm:ss
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
