@@ -13,6 +13,35 @@ export interface EQPreset {
 
 class AudioService {
   private isInitialized = false;
+  private capturedTabId: number | null = null;
+
+  private async sendMessageToTab<T = any>(message: any, tabId?: number | null): Promise<T> {
+    const ensureTabId = async () => {
+      if (tabId) return tabId;
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      return tabs[0]?.id ?? null;
+    };
+
+    const targetTabId = await ensureTabId();
+    if (!targetTabId) throw new Error('No active tab available');
+
+    // Wrap callback-style API to Promise for reliability across Chrome versions
+    return new Promise((resolve, reject) => {
+      try {
+        // @ts-ignore sendMessage callback signature
+        chrome.tabs.sendMessage(targetTabId, message, (response: any) => {
+          const err = chrome.runtime.lastError;
+          if (err) {
+            reject(new Error(err.message));
+          } else {
+            resolve(response);
+          }
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
 
   // Initialize audio capture (must be called from popup, not background script)
   async startCapture(): Promise<boolean> {
@@ -31,6 +60,7 @@ class AudioService {
 
       const tab = tabs[0];
       console.log('Active tab found:', tab.title, tab.url);
+      this.capturedTabId = tab.id ?? null;
 
       // Check if tab is suitable for audio capture
       if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('edge://')) {
@@ -269,6 +299,62 @@ class AudioService {
     }
   }
 
+  // Send playback control command to the captured tab
+  async controlPlayback(command: 'toggle' | 'play' | 'pause' | 'next' | 'previous'): Promise<boolean> {
+    try {
+      // Ensure we have a tab to target
+      let tabId = this.capturedTabId;
+      if (!tabId) {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        tabId = tabs[0]?.id ?? null;
+        this.capturedTabId = tabId;
+      }
+      if (!tabId) throw new Error('No active tab available for playback control');
+
+      const response = await this.sendMessageToTab({
+        action: 'media_control',
+        command,
+      }, tabId);
+      return !!(response && (response as any).success);
+    } catch (error) {
+      console.error('Error sending playback control:', error);
+      return false;
+    }
+  }
+
+  // Get current media info from the captured tab
+  async getMediaInfo(): Promise<{
+    isPlaying: boolean;
+    title: string;
+    artist?: string;
+    album?: string;
+    appName: string;
+    duration?: number;
+    position?: number;
+  } | null> {
+    try {
+      let tabId = this.capturedTabId;
+      if (!tabId) {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        tabId = tabs[0]?.id ?? null;
+        this.capturedTabId = tabId;
+      }
+      if (!tabId) throw new Error('No active tab available for media info');
+
+      const response = await this.sendMessageToTab({
+        action: 'get_media_info',
+      }, tabId);
+      return (response as any) || null;
+    } catch (error) {
+      console.error('Error getting media info:', error);
+      return null;
+    }
+  }
+
+  getCapturedTabId(): number | null {
+    return this.capturedTabId;
+  }
+
   // Get audio processing status
   async getStatus(): Promise<AudioStatus | null> {
     if (!this.isAvailable()) {
@@ -281,11 +367,11 @@ class AudioService {
         action: 'get_status'
       });
 
-      if (response.success) {
-        return response;
-      } else {
-        throw new Error(response.error || 'Failed to get status');
+      // Background returns a plain status object without a success flag
+      if (response && typeof response === 'object') {
+        return response as AudioStatus;
       }
+      return null;
     } catch (error) {
       console.error('Error getting audio status:', error);
       return null;
