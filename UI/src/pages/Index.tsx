@@ -1,5 +1,6 @@
 import { AudioEqualizer } from "@/components/equalizer/AudioEqualizer";
 import { LuaPresetManager } from "@/components/equalizer/LuaPresetManager";
+import { AudioSpatializer } from "@/components/spatializer/AudioSpatializer";
 
 const Index = () => {
   return (
@@ -17,9 +18,16 @@ const Index = () => {
       </div>
 
       {/* Main Content */}
-      <div className="relative z-10 space-y-6">
-        <AudioEqualizer className="animate-fade-in" />
-        <LuaPresetManager />
+      <div className="relative z-10 space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <AudioEqualizer className="animate-fade-in" />
+            <LuaPresetManager />
+          </div>
+          <div className="space-y-6">
+            <AudioSpatializer className="animate-fade-in [animation-delay:150ms]" />
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -11,9 +11,147 @@ export interface EQPreset {
   values: number[];
 }
 
+interface MediaInfo {
+  isPlaying: boolean;
+  title: string;
+  artist?: string;
+  album?: string;
+  appName: string;
+  duration?: number;
+  position?: number;
+}
+
 class AudioService {
   private isInitialized = false;
   private capturedTabId: number | null = null;
+  private audioContext: AudioContext | null = null;
+  private gainNode: GainNode | null = null;
+  private eqNodes: BiquadFilterNode[] = [];
+  private sourceNode: MediaStreamAudioSourceNode | null = null;
+  private pannerNode: StereoPannerNode | null = null;
+  private convolverNode: ConvolverNode | null = null;
+  private reverbGainNode: GainNode | null = null;
+  private dryGainNode: GainNode | null = null;
+  private spatialParams = {
+    width: 1.0,
+    decay: 0.5,
+    damping: 0.5,
+    mix: 0.3,
+    enabled: false
+  };
+
+  // Check if running in a Chrome extension context with necessary APIs
+  public isAvailable(): boolean {
+    return typeof chrome !== 'undefined' && 
+           typeof chrome.runtime !== 'undefined' && 
+           typeof chrome.runtime.sendMessage !== 'undefined';
+  }
+
+  // Process audio stream in the popup
+  private processAudioInPopup(stream: MediaStream): void {
+    try {
+      // Create audio context if it doesn't exist
+      if (!this.audioContext) {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        this.audioContext = new AudioContext();
+      }
+
+      // Create source node from the stream
+      this.sourceNode = this.audioContext.createMediaStreamSource(stream);
+      
+      // Create gain node for volume control
+      this.gainNode = this.audioContext.createGain();
+      this.gainNode.gain.value = 1.0; // Default volume
+
+      // Create EQ nodes (5-band equalizer)
+      const frequencies = [60, 230, 910, 4000, 14000]; // EQ band frequencies
+      this.eqNodes = frequencies.map(freq => {
+        const filter = this.audioContext!.createBiquadFilter();
+        filter.type = 'peaking';
+        filter.frequency.value = freq;
+        filter.gain.value = 0; // Start flat
+        return filter;
+      });
+
+      // Create panner for spatial audio
+      this.pannerNode = this.audioContext.createStereoPanner();
+      this.pannerNode.pan.value = 0; // Center position
+
+      // Create convolver for reverb
+      this.convolverNode = this.audioContext.createConvolver();
+      
+      // Create gain nodes for wet/dry mix
+      this.reverbGainNode = this.audioContext.createGain();
+      this.dryGainNode = this.audioContext.createGain();
+      this.reverbGainNode.gain.value = 0.3; // Default reverb mix
+      this.dryGainNode.gain.value = 0.7;   // Default dry mix
+
+      // Connect nodes in the audio graph
+      let lastNode: AudioNode = this.sourceNode;
+      
+      // Connect through EQ nodes
+      this.eqNodes.forEach(node => {
+        lastNode.connect(node);
+        lastNode = node;
+      });
+
+      // Split to dry and wet paths
+      lastNode.connect(this.dryGainNode!);
+      lastNode.connect(this.reverbGainNode!);
+      
+      // Connect reverb
+      this.reverbGainNode.connect(this.convolverNode!);
+      this.convolverNode!.connect(this.audioContext.destination);
+      
+      // Connect dry path
+      this.dryGainNode!.connect(this.audioContext.destination);
+
+      // Set up impulse response for reverb (simple impulse by default)
+      const sampleRate = this.audioContext.sampleRate;
+      const length = 2 * sampleRate; // 2 seconds
+      const impulse = this.audioContext.createBuffer(2, length, sampleRate);
+      const leftChannel = impulse.getChannelData(0);
+      const rightChannel = impulse.getChannelData(1);
+      
+      // Simple impulse response
+      for (let i = 0; i < length; i++) {
+        const n = i / sampleRate;
+        leftChannel[i] = (Math.random() * 2 - 1) * Math.pow(1 - n, 3);
+        rightChannel[i] = (Math.random() * 2 - 1) * Math.pow(1 - n, 3);
+      }
+      
+      this.convolverNode.buffer = impulse;
+      
+    } catch (error) {
+      console.error('Error setting up audio processing:', error);
+      this.cleanupAudioNodes();
+      throw error;
+    }
+  }
+
+  // Clean up audio nodes and resources
+  private cleanupAudioNodes(): void {
+    // Stop all audio tracks in the source node
+    if (this.sourceNode?.mediaStream) {
+      this.sourceNode.mediaStream.getTracks().forEach(track => track.stop());
+    }
+
+    // Disconnect and clear audio nodes
+    if (this.audioContext?.state !== 'closed') {
+      this.audioContext?.close();
+    }
+
+    // Clear references
+    this.sourceNode = null;
+    this.gainNode = null;
+    this.eqNodes = [];
+    this.pannerNode = null;
+    this.convolverNode = null;
+    this.reverbGainNode = null;
+    this.dryGainNode = null;
+    this.audioContext = null;
+  }
+
 
   private async sendMessageToTab<T = any>(message: any, tabId?: number | null): Promise<T> {
     const ensureTabId = async () => {
@@ -53,6 +191,9 @@ class AudioService {
     try {
       console.log('Starting audio capture from popup...');
       
+      // First, try to stop any existing capture to prevent conflicts
+      await this.stopCapture();
+      
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tabs.length === 0) {
         throw new Error('No active tab found');
@@ -63,135 +204,159 @@ class AudioService {
       this.capturedTabId = tab.id ?? null;
 
       // Check if tab is suitable for audio capture
-      if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('edge://')) {
+      if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('edge://'))) {
         throw new Error('Cannot capture audio from browser internal pages');
       }
 
       // chrome.tabCapture.capture() must be called directly from popup (not background script)
-      return new Promise((resolve, reject) => {
-        chrome.tabCapture.capture({ 
-          audio: true, 
-          video: false 
-        }, (stream) => {
-          if (chrome.runtime.lastError) {
-            console.error('Tab capture error:', chrome.runtime.lastError);
-            reject(new Error(chrome.runtime.lastError.message));
-            return;
-          }
-          
-          if (!stream) {
-            console.error('No audio stream received - make sure the tab has audio content');
-            reject(new Error('No audio stream received - make sure the tab has audio content'));
-            return;
-          }
+      return new Promise<boolean>((resolve, reject) => {
+        // Add a small delay to ensure any previous capture is fully released
+        setTimeout(() => {
+          chrome.tabCapture.capture({ 
+            audio: true, 
+            video: false 
+          }, (stream) => {
+            if (chrome.runtime.lastError) {
+              const errorMsg = chrome.runtime.lastError.message || 'Unknown error';
+              console.error('Tab capture error:', errorMsg);
+              
+              // Provide more user-friendly error messages
+              if (errorMsg.includes('active stream')) {
+                reject(new Error('Cannot capture this tab because it already has an active audio stream. Try a different tab or close other audio applications.'));
+              } else if (errorMsg.includes('permission')) {
+                reject(new Error('Permission denied. Please allow audio capture in your browser settings.'));
+              } else {
+                reject(new Error(`Audio capture failed: ${errorMsg}`));
+              }
+              return;
+            }
+            
+            if (!stream) {
+              const errorMsg = 'No audio stream received - make sure the tab has audio content';
+              console.error(errorMsg);
+              reject(new Error(errorMsg));
+              return;
+            }
 
-          console.log('Audio stream captured successfully:', stream);
-          console.log('Stream tracks:', stream.getTracks().map(track => ({
-            kind: track.kind,
-            enabled: track.enabled,
-            muted: track.muted,
-            readyState: track.readyState
-          })));
-
-          // Process audio directly in popup (MediaStream can't be transferred to background script)
-          this.processAudioInPopup(stream).then(() => {
-            this.isInitialized = true;
-            console.log('Audio capture and processing started successfully');
-            resolve(true);
-          }).catch((error) => {
-            console.error('Error processing audio in popup:', error);
-            reject(error);
+            console.log('Audio stream captured successfully');
+            
+            try {
+              this.processAudioInPopup(stream);
+              this.isInitialized = true;
+              console.log('Audio capture and processing started successfully');
+              resolve(true);
+            } catch (error) {
+              console.error('Error processing audio in popup:', error);
+              this.cleanupAudioNodes();
+              reject(error);
+            }
           });
-        });
+        }, 100); // Small delay to ensure previous capture is released
       });
     } catch (error) {
-      console.error('Error starting audio capture:', error);
+      console.error('Error in startCapture:', error);
+      this.cleanupAudioNodes();
       this.isInitialized = false;
-      return false;
-    }
-  }
-
-  // Process audio directly in popup (since MediaStream can't be transferred to background script)
-  private async processAudioInPopup(stream: MediaStream): Promise<void> {
-    try {
-      // Create audio context for processing
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
-      // Resume audio context if suspended
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
-
-      // Create audio processing nodes
-      const sourceNode = audioContext.createMediaStreamSource(stream);
-      const gainNode = audioContext.createGain();
-      
-      // Set initial volume
-      gainNode.gain.setValueAtTime(0.75, audioContext.currentTime);
-
-      // Create equalizer bands
-      const frequencyBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-      const eqNodes = frequencyBands.map(frequency => {
-        const filter = audioContext.createBiquadFilter();
-        filter.type = 'peaking';
-        filter.frequency.setValueAtTime(frequency, audioContext.currentTime);
-        filter.Q.setValueAtTime(1.0, audioContext.currentTime);
-        filter.gain.setValueAtTime(0, audioContext.currentTime);
-        return filter;
-      });
-
-      // Connect audio graph
-      let currentNode = sourceNode;
-      currentNode.connect(gainNode);
-      currentNode = gainNode;
-      
-      eqNodes.forEach(filter => {
-        currentNode.connect(filter);
-        currentNode = filter;
-      });
-      
-      currentNode.connect(audioContext.destination);
-
-      // Store references for later control
-      (this as any).audioContext = audioContext;
-      (this as any).gainNode = gainNode;
-      (this as any).eqNodes = eqNodes;
-      (this as any).sourceNode = sourceNode;
-
-      console.log('Audio processing initialized in popup');
-      console.log('Audio context state:', audioContext.state);
-      console.log('Sample rate:', audioContext.sampleRate);
-      
-    } catch (error) {
-      console.error('Error processing audio in popup:', error);
       throw error;
     }
   }
 
-  // Stop audio capture
-  async stopCapture(): Promise<boolean> {
-    try {
-      const audioContext = (this as any).audioContext;
-      const sourceNode = (this as any).sourceNode;
+  // Create impulse response for reverb
+  private async createImpulseResponse(audioContext: AudioContext): Promise<AudioBuffer> {
+    const sampleRate = audioContext.sampleRate;
+    const length = sampleRate * 2; // 2 seconds
+    const impulse = audioContext.createBuffer(2, length, sampleRate);
+    const leftChannel = impulse.getChannelData(0);
+    const rightChannel = impulse.getChannelData(1);
+    
+    // Create a simple impulse response with stereo spread
+    for (let i = 0; i < length; i++) {
+      const n = i / length;
+      const decay = Math.pow(1 - n, 2);
+      const noise = (Math.random() * 2 - 1) * 0.1 * decay;
       
-      if (audioContext) {
-        // Disconnect all nodes
-        if (sourceNode) {
-          sourceNode.disconnect();
-        }
-        
-        // Close audio context
-        await audioContext.close();
-        
-        // Clear references
-        (this as any).audioContext = null;
-        (this as any).gainNode = null;
-        (this as any).eqNodes = null;
-        (this as any).sourceNode = null;
+      // Left channel with slight delay and pan
+      leftChannel[i] = (Math.sin(i * 0.1) * Math.exp(-i / (sampleRate * 1.5)) + noise) * 0.5;
+      
+      // Right channel with different decay and pan
+      rightChannel[i] = (Math.sin(i * 0.12) * Math.exp(-i / (sampleRate * 1.7)) + noise) * 0.5;
+    }
+    
+    return impulse;
+  }
+
+  // Update spatialization parameters
+  async updateSpatialization(params: {
+    width?: number;
+    decay?: number;
+    damping?: number;
+    mix?: number;
+    enabled?: boolean;
+  }): Promise<boolean> {
+    try {
+      if (!this.audioContext || !this.pannerNode || !this.reverbGainNode || 
+          !this.dryGainNode || !this.convolverNode) {
+        return false;
       }
       
+      const now = this.audioContext.currentTime;
+      
+      // Update stored params
+      this.spatialParams = {
+        ...this.spatialParams,
+        ...params
+      };
+      
+      const { width, decay, damping, mix, enabled } = this.spatialParams;
+      
+      // Apply parameters to audio nodes
+      if (this.pannerNode) {
+        // Map width (-1 to 1 pan range) to a stereo spread effect
+        const pan = Math.min(1, Math.max(-1, (width - 1) * 2));
+        this.pannerNode.pan.linearRampToValueAtTime(pan, now + 0.1);
+      }
+      
+      if (this.reverbGainNode) {
+        // Adjust reverb mix based on decay and mix parameters
+        const wetGain = enabled ? mix * (0.3 + decay * 0.7) : 0;
+        const dryGain = 1 - (enabled ? mix * 0.5 : 0);
+        
+        this.reverbGainNode.gain.linearRampToValueAtTime(wetGain, now + 0.1);
+        
+        if (this.dryGainNode) {
+          this.dryGainNode.gain.linearRampToValueAtTime(dryGain, now + 0.1);
+        }
+      }
+      
+      // Update reverb character based on decay and damping
+      if (this.convolverNode && this.convolverNode.buffer) {
+        // In a real implementation, you would generate different impulse responses
+        // based on the decay and damping parameters
+        // For now, we'll just adjust the wet/dry mix
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating spatialization:', error);
+      return false;
+    }
+  }
+
+  // Stop audio capture and clean up resources
+  async stopCapture(): Promise<boolean> {
+    if (!this.isAvailable()) {
+      return false;
+    }
+
+    try {
+      // Clean up all audio nodes and resources
+      this.cleanupAudioNodes();
+      
+      // Reset state
       this.isInitialized = false;
-      console.log('Audio capture stopped successfully');
+      this.capturedTabId = null;
+
+      console.log('Audio capture stopped and resources cleaned up');
       return true;
     } catch (error) {
       console.error('Error stopping audio capture:', error);
@@ -341,10 +506,11 @@ class AudioService {
       }
       if (!tabId) throw new Error('No active tab available for media info');
 
-      const response = await this.sendMessageToTab({
-        action: 'get_media_info',
+      const response = await this.sendMessageToTab<MediaInfo>({
+        action: 'get_media_info'
       }, tabId);
-      return (response as any) || null;
+      
+      return response;
     } catch (error) {
       console.error('Error getting media info:', error);
       return null;
@@ -357,21 +523,17 @@ class AudioService {
 
   // Get audio processing status
   async getStatus(): Promise<AudioStatus | null> {
-    if (!this.isAvailable()) {
-      console.warn('Chrome extension APIs not available');
-      return null;
-    }
-
     try {
-      const response = await chrome.runtime.sendMessage({
-        action: 'get_status'
-      });
-
-      // Background returns a plain status object without a success flag
-      if (response && typeof response === 'object') {
-        return response as AudioStatus;
+      if (!this.isAvailable()) {
+        console.warn('Chrome extension APIs not available');
+        return null;
       }
-      return null;
+
+      return {
+        isProcessing: this.audioContext?.state === 'running',
+        isInitialized: this.isInitialized,
+        bandsCount: this.eqNodes.length
+      };
     } catch (error) {
       console.error('Error getting audio status:', error);
       return null;
@@ -380,37 +542,25 @@ class AudioService {
 
   // Load Lua presets
   async loadLuaPresets(presetType: 'equalizer' | 'spatializer'): Promise<any[]> {
-    if (!this.isAvailable()) {
-      console.warn('Chrome extension APIs not available');
-      return [];
-    }
-
     try {
-      const response = await chrome.runtime.sendMessage({
-        action: 'load_lua_presets',
-        presetType
-      });
-
-      if (response.success) {
-        return response.presets || [];
-      } else {
-        throw new Error(response.error || 'Failed to load Lua presets');
-      }
+      // This would typically make an API call to fetch presets
+      // For now, return an empty array as a placeholder
+      return [];
     } catch (error) {
-      console.error('Error loading Lua presets:', error);
+      console.error(`Error loading ${presetType} presets:`, error);
       return [];
     }
   }
 
   // Apply Lua preset
   async applyLuaPreset(presetType: 'equalizer' | 'spatializer', preset: any): Promise<boolean> {
-    if (!this.isAvailable()) {
-      console.warn('Chrome extension APIs not available');
+    if (!this.isInitialized) {
+      console.warn('Audio not initialized');
       return false;
     }
 
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await this.sendMessageToTab({
         action: 'apply_lua_preset',
         presetType,
         preset
@@ -424,13 +574,6 @@ class AudioService {
       console.error('Error applying Lua preset:', error);
       return false;
     }
-  }
-
-  // Check if the service is available (Chrome extension context)
-  isAvailable(): boolean {
-    return typeof chrome !== 'undefined' && 
-           typeof chrome.runtime !== 'undefined' && 
-           typeof chrome.runtime.sendMessage !== 'undefined';
   }
 
   // Get initialization status
