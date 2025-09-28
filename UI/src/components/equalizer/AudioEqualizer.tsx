@@ -63,10 +63,13 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [isPowerOn, setIsPowerOn] = useState(true);
   const [isAudioInitialized, setIsAudioInitialized] = useState(false);
-  const [currentTrack] = useState({
-    title: "Neon Dreams",
-    artist: "Synthwave Station",
-    duration: "3:42",
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [currentTrack, setCurrentTrack] = useState({
+    title: "Unknown Title",
+    artist: "",
+    duration: "--:--",
+    appName: "",
   });
 
   const handleBandChange = useCallback(async (index: number, value: number) => {
@@ -129,30 +132,120 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
     }
   }, [isMuted, volume, isAudioInitialized]);
 
-  // Initialize audio capture when component mounts
-  useEffect(() => {
-    const initializeAudio = async () => {
-      if (audioService.isAvailable()) {
-        try {
-          const success = await audioService.startCapture();
-          setIsAudioInitialized(success);
-          if (success) {
-            console.log('Audio capture initialized successfully');
-          }
-        } catch (error) {
-          console.error('Failed to initialize audio capture:', error);
+  // Manual audio connection handler (requires user gesture)
+  const handleConnectAudio = useCallback(async () => {
+    if (!audioService.isAvailable()) {
+      console.warn('Audio service not available - not in extension context');
+      setConnectionError('Extension APIs not available');
+      return;
+    }
+
+    setIsConnecting(true);
+    setConnectionError(null);
+    
+    try {
+      console.log('Attempting to connect audio...');
+      const success = await audioService.startCapture();
+      setIsAudioInitialized(success);
+      
+      if (success) {
+        console.log('Audio capture initialized successfully');
+        setConnectionError(null);
+
+        // Fetch initial media info from the page
+        const info = await audioService.getMediaInfo();
+        if (info) {
+          setIsPlaying(!!info.isPlaying);
+          const duration = info.duration && info.duration > 0 ? formatTime(info.duration) : '--:--';
+          setCurrentTrack({
+            title: info.title || 'Unknown Title',
+            artist: info.artist || info.appName || '',
+            duration,
+            appName: info.appName || '',
+          });
         }
+      } else {
+        console.warn('Audio capture initialization failed');
+        setConnectionError('Failed to start audio capture');
+      }
+    } catch (error) {
+      console.error('Failed to initialize audio capture:', error);
+      setIsAudioInitialized(false);
+      setConnectionError(error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsConnecting(false);
+    }
+  }, []);
+
+  // Listen for media updates from the content script
+  useEffect(() => {
+    const listener = (request: any, sender: any) => {
+      if (request && request.action === 'media_state_update') {
+        const capturedId = audioService.getCapturedTabId();
+        const senderId = sender?.tab?.id ?? null;
+        // Accept updates if we don't know the tab yet, or if it matches.
+        if (capturedId && senderId && capturedId !== senderId) return;
+
+        // Update playback state
+        if (typeof request.isPlaying === 'boolean') setIsPlaying(request.isPlaying);
+
+        // Update track metadata
+        const title = request.title || 'Unknown Title';
+        const artist = request.artist || request.appName || '';
+        const durationSec = Number(request.duration) || 0;
+        const duration = durationSec > 0 ? formatTime(durationSec) : '--:--';
+        setCurrentTrack({
+          title,
+          artist,
+          duration,
+          appName: request.appName || '',
+        });
       }
     };
 
-    initializeAudio();
-
-    // Cleanup on unmount
+    if (audioService.isAvailable()) {
+      chrome.runtime.onMessage.addListener(listener);
+    }
     return () => {
-      if (audioService.isAvailable()) {
-        audioService.stopCapture();
-      }
+      try {
+        if (audioService.isAvailable()) {
+          // @ts-ignore
+          chrome.runtime.onMessage.removeListener?.(listener);
+        }
+      } catch {}
     };
+  }, []);
+
+  // Periodic polling fallback in case events are missed
+  useEffect(() => {
+    if (!audioService.isAvailable()) return;
+    if (!isAudioInitialized) return;
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      try {
+        const info = await audioService.getMediaInfo();
+        if (cancelled || !info) return;
+        setIsPlaying(!!info.isPlaying);
+        const duration = info.duration && info.duration > 0 ? formatTime(info.duration) : '--:--';
+        setCurrentTrack({
+          title: info.title || 'Unknown Title',
+          artist: info.artist || info.appName || '',
+          duration,
+          appName: info.appName || '',
+        });
+      } catch {}
+    }, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isAudioInitialized]);
+
+  // Check audio service availability on mount
+  useEffect(() => {
+    if (!audioService.isAvailable()) {
+      console.warn('Audio service not available - not in extension context');
+    }
   }, []);
 
   if (!isPowerOn) {
@@ -217,13 +310,31 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
         </div>
       </div>
 
+      {/* Audio Connection Instructions */}
+      {!isAudioInitialized && (
+        <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30">
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="text-white text-xs font-bold">!</span>
+            </div>
+            <div>
+              <div className="text-eq-text font-medium mb-1">Audio Capture Required</div>
+              <div className="text-eq-text-dim text-sm">
+                Click "Connect Audio" below to start capturing audio from this tab. 
+                Make sure the tab has audio content (YouTube, Spotify, etc.) and click the button to begin.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Now Playing */}
       <div className="mb-6 p-4 rounded-xl bg-eq-surface border border-eq-border">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-eq-text font-medium">{currentTrack.title}</div>
             <div className="text-eq-text-dim text-sm">
-              {currentTrack.artist}
+              {currentTrack.artist || currentTrack.appName}
             </div>
           </div>
           <div className="text-eq-text-dim font-mono text-sm">
@@ -279,9 +390,21 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
         <div className="space-y-6">
           <PlaybackControls
             isPlaying={isPlaying}
-            onPlayPause={() => setIsPlaying(!isPlaying)}
-            onPrevious={() => console.log("Previous track")}
-            onNext={() => console.log("Next track")}
+            onPlayPause={async () => {
+              if (audioService.isAvailable()) {
+                await audioService.controlPlayback('toggle');
+              }
+            }}
+            onPrevious={async () => {
+              if (audioService.isAvailable()) {
+                await audioService.controlPlayback('previous');
+              }
+            }}
+            onNext={async () => {
+              if (audioService.isAvailable()) {
+                await audioService.controlPlayback('next');
+              }
+            }}
             onShuffle={() => setIsShuffleEnabled(!isShuffleEnabled)}
             onRepeat={() => setIsRepeatEnabled(!isRepeatEnabled)}
             isShuffleEnabled={isShuffleEnabled}
@@ -314,6 +437,54 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
                   {Math.max(...eqValues).toFixed(1)}dB
                 </span>
               </div>
+              <div className="flex justify-between">
+                <span>Audio Status:</span>
+                <span className={isAudioInitialized ? "text-green-400" : "text-red-400"}>
+                  {isAudioInitialized ? "Connected" : "Disconnected"}
+                </span>
+              </div>
+              {connectionError && (
+                <div className="flex justify-between">
+                  <span>Error:</span>
+                  <span className="text-red-400 text-xs">
+                    {connectionError}
+                  </span>
+                </div>
+              )}
+              <div className="mt-3">
+                {!isAudioInitialized ? (
+                  <button
+                    onClick={handleConnectAudio}
+                    disabled={isConnecting}
+                    className={cn(
+                      "w-full px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                      "bg-gradient-to-r from-eq-accent to-eq-accent-glow",
+                      "text-eq-background hover:shadow-lg",
+                      "disabled:opacity-50 disabled:cursor-not-allowed",
+                      "hover:scale-105 active:scale-95"
+                    )}
+                  >
+                    {isConnecting ? "Connecting..." : "Connect Audio"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      if (audioService.isAvailable()) {
+                        await audioService.stopCapture();
+                        setIsAudioInitialized(false);
+                      }
+                    }}
+                    className={cn(
+                      "w-full px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                      "bg-gradient-to-r from-red-500 to-red-600",
+                      "text-white hover:shadow-lg",
+                      "hover:scale-105 active:scale-95"
+                    )}
+                  >
+                    Disconnect Audio
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -321,3 +492,10 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
     </div>
   );
 };
+
+// Utility to format seconds to mm:ss
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
