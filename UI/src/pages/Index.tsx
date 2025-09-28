@@ -19,7 +19,7 @@ const Index = () => {
       {/* Main Content */}
       <div className="relative z-10 space-y-6">
         <AudioEqualizer className="animate-fade-in" />
-        <LuaPresetManager />
+       
       </div>
     </div>
   );

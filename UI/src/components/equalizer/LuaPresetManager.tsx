@@ -125,7 +125,7 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
     <div className={cn("space-y-6", className)}>
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-eq-text">Lua Presets</h3>
-        <Button
+        {/* <Button
           variant="outline"
           size="sm"
           onClick={loadLuaPresets}
@@ -138,7 +138,7 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
             <FileText className="h-4 w-4" />
           )}
           <span className="ml-2">Reload</span>
-        </Button>
+        </Button> */}
       </div>
 
       {/* Equalizer Presets */}
