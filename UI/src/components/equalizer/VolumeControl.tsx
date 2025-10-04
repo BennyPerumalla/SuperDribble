@@ -97,7 +97,7 @@ export const VolumeControl: React.FC<VolumeControlProps> = ({
         <div
           className={cn(
             "absolute w-5 h-5 rounded-full border-2 border-eq-background",
-            "transition-transform transition-colors duration-150 ease-out pointer-events-none",
+            "transition-colors duration-150 ease-out pointer-events-none",
             {
               "bg-eq-volume shadow-lg shadow-eq-volume/50 scale-110":
                 !isMuted && (isDragging || volume > 0),

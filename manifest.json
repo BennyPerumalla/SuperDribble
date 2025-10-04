@@ -5,7 +5,10 @@
   "description": "A Chrome extension to amplify and control audio in any tab.",
   "permissions": [
     "activeTab",
-    "tabCapture"
+    "tabCapture",
+    "tabs",
+    "storage",
+    "scripting"
   ],
   "action": {
     "default_popup": "UI/build/index.html",
