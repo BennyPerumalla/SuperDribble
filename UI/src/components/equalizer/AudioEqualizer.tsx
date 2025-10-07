@@ -2,9 +2,9 @@ import React, { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { EqualizerBand } from "./EqualizerBand";
 import { VolumeControl } from "./VolumeControl";
-import { PresetSelector, EQPreset } from "./PresetSelector";
+import { EQPreset } from "./PresetSelector";
 import { LuaPresetManager } from "@/components/equalizer/LuaPresetManager";
-import { Settings, Power, Play, Pause, ChevronDown, Wifi, WifiOff } from "lucide-react";
+import { Settings, Play, Pause, ChevronDown, Wifi, WifiOff, PanelTopClose } from "lucide-react";
 import { audioService } from "@/lib/audioService";
 
 const FREQUENCY_BANDS = [
@@ -239,7 +239,6 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
           className,
         )}
       >
-        {/* Power On Button */}
         <button
           onClick={() => setIsPowerOn(true)}
           className={cn(
@@ -291,14 +290,14 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
             {isAudioInitialized ? <Wifi size={20} /> : <WifiOff size={20} />}
           </button>
           
-          {/* Power Button */}
+          {/* Close Button */}
           <button
             className={cn(
               "p-2 rounded-lg text-eq-text-dim hover:text-eq-accent",
               "hover:bg-eq-surface-light transition-all duration-200",
             )}
           >
-            <Power size={20} />
+            <PanelTopClose size={20} />
           </button>
           
           {/* Settings Button */}
@@ -402,10 +401,9 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
         <div
           className={cn(
             "p-2 rounded-xl bg-gradient-to-r from-eq-surface to-eq-surface-light",
-            "border border-eq-border overflow-x-auto overflow-y-hidden",
           )}
         >
-          <div className="flex justify-between items-start gap-1 min-w-fit pb-2">
+          <div className="flex justify-between items-start gap-1 pb-2">
             {FREQUENCY_BANDS.map((frequency, index) => (
               <EqualizerBand
                 key={`${frequency}-${index}`} 
@@ -413,7 +411,6 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
                 value={eqValues[index]}
                 onChange={(value) => handleBandChange(index, value)}
                 isActive={isPlaying && eqValues[index] !== 0}
-                className="flex-shrink-0"
               />
             ))}
           </div>
@@ -422,10 +419,3 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
     </div>
   );
 };
-
-// Utility to format seconds to mm:ss
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
