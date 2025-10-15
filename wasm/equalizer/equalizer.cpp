@@ -64,7 +64,8 @@ public:
 class Equalizer {
 private:
     double sampleRate;
-    BiquadFilter bands[MAX_BANDS];
+    BiquadFilter bandsLeft[MAX_BANDS];
+    BiquadFilter bandsRight[MAX_BANDS];
 
 public:
     Equalizer(double rate) : sampleRate(rate) {}
@@ -99,12 +100,14 @@ public:
         double a1_coeff = -2.0 * cos_w0;
         double a2_coeff = 1.0 - alpha / A;
 
-        BiquadFilter& band = bands[bandIndex];
-        band.b1 = b1_coeff / a0_coeff;
-        band.b2 = b2_coeff / a0_coeff;
-        band.a0 = b0_coeff / a0_coeff;
-        band.a1 = a1_coeff / a0_coeff;
-        band.a2 = a2_coeff / a0_coeff;
+        for(int ch = 0; ch < 2; ch++) {
+            BiquadFilter& band = ch == 0 ? bandsLeft[bandIndex] : bandsRight[bandIndex];
+            band.b1 = b1_coeff / a0_coeff;
+            band.b2 = b2_coeff / a0_coeff;
+            band.a0 = b0_coeff / a0_coeff;
+            band.a1 = a1_coeff / a0_coeff;
+            band.a2 = a2_coeff / a0_coeff;
+        }
     }
 
     /**
@@ -115,16 +118,26 @@ public:
      * @param numSamples The number of samples in the buffer.
      */
     void process(float* buffer, int numSamples) {
-        for (int i = 0; i < numSamples; ++i) {
-            double sample = buffer[i];
-            // Process the sample through each band sequentially
+
+        for (int i = 0; i < numSamples; i += 2) {
+            // Process left channel
+            double sampleLeft = buffer[i];
             for (int j = 0; j < MAX_BANDS; ++j) {
-                sample = bands[j].processSample(sample);
+                sampleLeft = bandsLeft[j].processSample(sampleLeft);
             }
             // Simple hard clipping for safety. A proper limiter would be better in a full implementation.
-            if (sample > 1.0) sample = 1.0;
-            if (sample < -1.0) sample = -1.0;
-            buffer[i] = (float)sample;
+            if (sampleLeft > 1.0) sampleLeft = 1.0;
+            if (sampleLeft < -1.0) sampleLeft = -1.0;
+            buffer[i] = (float)sampleLeft;
+
+            // Process right channel
+            double sampleRight = buffer[i + 1];
+            for (int j = 0; j < MAX_BANDS; ++j) {
+                sampleRight = bandsRight[j].processSample(sampleRight);
+            }
+            if (sampleRight > 1.0) sampleRight = 1.0;
+            if (sampleRight < -1.0) sampleRight = -1.0;
+            buffer[i + 1] = (float)sampleRight;
         }
     }
 };
