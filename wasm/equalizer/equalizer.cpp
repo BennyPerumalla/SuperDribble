@@ -80,11 +80,15 @@ public:
      * @param gainDb The gain in decibels (dB).
      * @param q The Q factor (bandwidth).
      */
+    
     void setBand(int bandIndex, double frequency, double gainDb, double q) {
         if (bandIndex < 0 || bandIndex >= MAX_BANDS) {
             return;
         }
-
+        
+        if (q <= 0.0) return;
+        if(frequency <= 0.0 || frequency > sampleRate / 2.0) return;
+    
         // This is a standard formula for a peaking EQ filter, derived from the
         // Audio EQ Cookbook by Robert Bristow-Johnson.
         double A = pow(10, gainDb / 40.0);
@@ -114,7 +118,7 @@ public:
      * Processes a block of audio samples in place.
      * The input buffer is modified directly with the output.
      *
-     * @param buffer A pointer to the audio buffer (expects mono).
+     * @param buffer A pointer to an interleaved stereo audio buffer.
      * @param numSamples The number of samples in the buffer.
      */
     void process(float* buffer, int numSamples) {
