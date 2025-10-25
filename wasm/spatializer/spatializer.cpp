@@ -31,6 +31,65 @@ const int FDN_ORDER = 4; // 4x4 FDN for a good balance of quality and performanc
  * @struct DelayLine
  * @brief A simple circular buffer delay line.
  */
+
+struct BiquadFilter {
+
+    // Filter Coefficients
+    float b0, b1, b2, a1, a2;
+     
+    //State  variablles for each c hannel
+    float x1 = 0.0f, x2 = 0.0f; //Input history 
+    float y1 = 0.0f, y2 = 0.0f; //Output history
+
+    BiquadFilter() : b0(1.0f), b1(0.0f), b2(0.0f), a1(0.0f), a2(0.0f) {}
+
+    void reset() {
+        x1 = x2 = y1 = y2 = 0.0f;
+    }
+
+    float process(float input) {
+        float output = b0 * input + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+
+        //Update history
+        x2 = x1;
+        x1 = input;
+        y2 = y1;
+        y1 = output;
+
+        return output;
+    }
+
+    void configure_lowpass(float freq, float sampleRate) {
+        float omega = 2.0f * PI * freq / sampleRate;
+        float sin_omega = sin(omega);
+        float cos_omega = cos(omega);
+        float alpha = sin_omega / (2.0f * 0.7071f); // ButterWorth 
+        
+        float a0 = 1.0f + alpha;
+        b0 = ((1.0f - cos_omega) / 2.0f ) / a0; 
+        b1 = (1.0f - cos_omega) / a0;
+        b2 = ((1.0f - cos_omega) / 2.0f ) / a0;
+        a1 = (-2.0f * cos_omega) / a0;
+        a2 = (1.0f - alpha) / a0;
+    }
+
+    void configure_highpass(float freq, float sampleRate) {
+        float omega = 2.0f * PI * freq / sampleRate;
+        float sin_omega = sin(omega);
+        float cos_omega = cos(omega);
+        float alpha = sin_omega / (2.0f * 0.7071f); // ButterWorth 
+        
+        float a0 = 1.0f + alpha;
+        b0 = ((1.0f + cos_omega) / 2.0f ) / a0; 
+        b1 = (-(1.0f + cos_omega)) / a0;
+        b2 = ((1.0f + cos_omega) / 2.0f ) / a0;
+        a1 = (-2.0f * cos_omega) / a0;
+        a2 = (1.0f - alpha) / a0;
+    }
+};
+
+
+
 struct DelayLine {
     std::vector<float> buffer;
     int write_pos = 0;
@@ -73,6 +132,11 @@ class Spatializer {
 private:
     double sampleRate;
 
+    // --- Crossover Network Components ---
+    float crossover_freq = 250.0f; // Crossover frequency in Hz
+    float low_width_factor = 0.3f; // Multiplier for width in low frequencies
+    float high_width_factor = 1.5f; // Multiplier for width in high frequencies
+
     // --- Effect Parameters ---
     float width = 1.0f;    // Stereo width (1.0 = normal, >1 = wider)
     float decay = 0.5f;    // Reverb decay time (0-1)
@@ -84,6 +148,13 @@ private:
     float fdn_gains[FDN_ORDER]; // Feedback gains derived from decay
     float fdn_lp_z[FDN_ORDER] = {0}; // State for one-pole LPFs (damping)
     int delay_lengths[FDN_ORDER];
+
+
+    // Filters for mid/side channels (4 filters total for Linkwitz-Riley)
+    BiquadFilter mid_lp1, mid_lp2; // Lowpass for mid (cascaded for 4th order)
+    BiquadFilter mid_hp1, mid_hp2; // Highpass for mid 
+    BiquadFilter side_lp1, side_lp2;  // Lowpass for side
+    BiquadFilter side_hp1, side_hp2; // Highpass for side
 
     // A simple 4x4 Hadamard matrix for feedback mixing. Computationally cheap.
     const float hadamard_matrix[FDN_ORDER][FDN_ORDER] = {
@@ -103,7 +174,21 @@ public:
             delay_lengths[i] = static_cast<int>((base_primes[i] / 2221.0) * sampleRate * 0.1);
             delay_lines[i].set_size(delay_lengths[i] + 2); // A little extra room
         }
+        update_crossover();
         update_params();
+    }
+    
+    void update_crossover() {
+        // Configure cascaded 2nd order filters for 4th order Linkwitz-Riley response
+        mid_lp1.configure_lowpass(crossover_freq, sampleRate);
+        mid_lp2.configure_lowpass(crossover_freq, sampleRate);
+        mid_hp1.configure_highpass(crossover_freq, sampleRate);
+        mid_hp2.configure_highpass(crossover_freq, sampleRate);
+        
+        side_lp1.configure_lowpass(crossover_freq, sampleRate);
+        side_lp2.configure_lowpass(crossover_freq, sampleRate);
+        side_hp1.configure_highpass(crossover_freq, sampleRate);
+        side_hp2.configure_highpass(crossover_freq, sampleRate);
     }
 
     void update_params() {
@@ -119,6 +204,9 @@ public:
     void set_decay(float d) { decay = std::max(0.0f, std::min(1.0f, d)); update_params(); }
     void set_damping(float d) { damping = std::max(0.0f, std::min(1.0f, d)); }
     void set_mix(float m) { mix = std::max(0.0f, std::min(1.0f, m)); }
+    void set_crossover_freq(float freq){crossover_freq = std::max(50.0f, std::min(500.0f, freq)); update_crossover();}
+    void set_low_width_factor(float fractor){low_width_factor = std::max(0.0f, std::min(1.0f, fractor));}
+    void set_high_width_factor(float fractor){high_width_factor = std::max(0.0f, std::min(3.0f, fractor));}
 
     /**
      * @brief Processes a stereo audio buffer in-place.
@@ -130,12 +218,27 @@ public:
             float dry_l = buffer[i * 2];
             float dry_r = buffer[i * 2 + 1];
 
-            // --- 1. Stereo Widener (Mid/Side) ---
+            // --- 1. Frequency-Dependent Stereo Widener (Mid/Side with Crossover) ---
             float mid = (dry_l + dry_r) * 0.5f;
             float side = (dry_l - dry_r) * 0.5f;
-            side *= width; // Apply width control
-            float wide_l = mid + side;
-            float wide_r = mid - side;
+           
+            // Split mid and side into low and high frequency bands
+            float mid_low = mid_lp2.process(mid_lp1.process(mid));
+            float mid_high = mid_hp2.process(mid_hp1.process(mid));
+            float side_low = side_lp2.process(side_lp1.process(side));
+            float side_high = side_hp2.process(side_hp1.process(side));
+
+            // Apply frequency-dependent width control
+            side_low *= width * low_width_factor;   // Less width for bass
+            side_high *= width * high_width_factor; // More width for highs
+           
+            // Recombine bands into mid and side
+            float processed_mid = mid_low + mid_high;
+            float processed_side = side_low + side_high;
+
+            // Convert back to L/R
+            float wide_l = processed_mid + processed_side;
+            float wide_r = processed_mid - processed_side;
 
             // --- 2. FDN Reverb (input is mono sum of widened signal) ---
             float fdn_input = (wide_l + wide_r) * 0.5f;
@@ -193,6 +296,9 @@ extern "C" {
     void spatializer_set_decay(Spatializer* sp, float decay) { sp->set_decay(decay); }
     void spatializer_set_damping(Spatializer* sp, float damping) { sp->set_damping(damping); }
     void spatializer_set_mix(Spatializer* sp, float mix) { sp->set_mix(mix); }
+    void spatializer_set_crossover_freq(Spatializer* sp, float freq) { sp->set_crossover_freq(freq); }
+    void spatializer_set_low_width_factor(Spatializer* sp, float fractor) { sp->set_low_width_factor(fractor); }
+    void spatializer_set_high_width_factor(Spatializer* sp, float fractor) { sp->set_high_width_factor(fractor); }
 
     void spatializer_process_buffer(Spatializer* sp, float* buffer, int num_frames) {
         sp->process(buffer, num_frames);
