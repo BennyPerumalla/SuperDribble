@@ -96,15 +96,13 @@ struct DelayLine {
     int write_pos = 0;
     int buffer_size;
 
-    DelayLine(int size = 0) : buffer_size(size) {
-        if (size > 0) {
-            buffer.resize(size, 0.0f);
-        }
+    DelayLine(int size = 0) {
+        set_size(size);
     }
 
     void set_size(int size) {
-        buffer.assign(size, 0.0f);
-        buffer_size = size;
+        buffer_size = std::max(1, size); 
+        buffer.assign(buffer_size, 0.0f);
         write_pos = 0;
     }
 
@@ -305,3 +303,4 @@ extern "C" {
         sp->process(buffer, num_frames);
     }
 }
+
