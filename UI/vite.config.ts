@@ -14,6 +14,11 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@components": path.resolve(__dirname, "./src/components"),
+      "@lib": path.resolve(__dirname, "./src/lib"),
+      "@equalizer": path.resolve(__dirname, "./src/equalizer"),
+      "@pages": path.resolve(__dirname, "./src/pages"),
+      "@types": path.resolve(__dirname, "./src/types"),
     },
   },
   build: {

@@ -1,10 +1,7 @@
 import React from "react";
 import { cn } from "@/lib/utils";
+import { EQPreset } from "@/constants/eq_presets";
 
-export interface EQPreset {
-  name: string;
-  values: number[];
-}
 
 interface PresetSelectorProps {
   presets: EQPreset[];

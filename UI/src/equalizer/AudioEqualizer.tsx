@@ -2,54 +2,13 @@ import React, { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { EqualizerBand } from "./EqualizerBand";
 import { VolumeControl } from "./VolumeControl";
-import { EQPreset } from "./PresetSelector";
-import { LuaPresetManager } from "@/components/equalizer/LuaPresetManager";
+import { EQPreset } from "@/constants/eq_presets";
+import { LuaPresetManager } from "@/equalizer/LuaPresetManager";
 import { Settings, Play, Pause, ChevronDown, Wifi, WifiOff, PanelTopClose } from "lucide-react";
 import { audioService } from "@/lib/audioService";
+import FREQUENCY_BANDS from "@/constants/frequencyBands";
+import EQ_PRESETS from "@/constants/eq_presets";
 
-const FREQUENCY_BANDS = [
-  "32Hz",
-  "64Hz",
-  "125Hz",
-  "250Hz",
-  "500Hz",
-  "1kHz",
-  "2kHz",
-  "4kHz",
-  "8kHz",
-  "16kHz",
-];
-
-const EQ_PRESETS: EQPreset[] = [
-  {
-    name: "Flat",
-    values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  },
-  {
-    name: "Rock",
-    values: [5, 3, -1, -2, -1, 2, 4, 6, 6, 5],
-  },
-  {
-    name: "Pop",
-    values: [-1, 2, 4, 4, 2, 0, -1, -1, 0, 1],
-  },
-  {
-    name: "Jazz",
-    values: [3, 2, 1, 2, -1, -1, 0, 1, 2, 3],
-  },
-  {
-    name: "Classical",
-    values: [4, 3, 2, 1, -1, -2, -2, -1, 2, 3],
-  },
-  {
-    name: "Electronic",
-    values: [6, 4, 1, 0, -2, 2, 1, 2, 6, 7],
-  },
-  {
-    name: "Hip Hop",
-    values: [7, 5, 1, 3, -1, -1, 1, 2, 3, 4],
-  },
-];
 
 interface AudioEqualizerProps {
   className?: string;
@@ -74,8 +33,8 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
       newValues[index] = value;
       return newValues;
     });
-    setActivePreset("Custom"); 
-    
+    setActivePreset("Custom");
+
     // Update audio processing if available
     if (audioService.isAvailable() && isAudioInitialized) {
       await audioService.updateEQBand(index, value);
@@ -83,10 +42,10 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
   }, [isAudioInitialized]);
 
   const handlePresetSelect = useCallback(async (preset: EQPreset) => {
-    setEqValues([...preset.values]); 
+    setEqValues([...preset.values]);
     setActivePreset(preset.name);
     setShowPresetDropdown(false);
-    
+
     // Update audio processing if available
     if (audioService.isAvailable() && isAudioInitialized) {
       await audioService.updateEQPreset(preset);
@@ -95,9 +54,9 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
 
   const handleReset = useCallback(async () => {
     const resetValues = new Array(10).fill(0);
-    setEqValues([...resetValues]); 
+    setEqValues([...resetValues]);
     setActivePreset("Flat");
-    
+
     // Update audio processing if available
     if (audioService.isAvailable() && isAudioInitialized) {
       await audioService.updateEQPreset({ name: 'Flat', values: resetValues });
@@ -110,7 +69,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
       if (newVolume > 0 && isMuted) {
         setIsMuted(false);
       }
-      
+
       // Update audio processing if available
       if (audioService.isAvailable() && isAudioInitialized) {
         await audioService.updateVolume(newVolume);
@@ -122,7 +81,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
   const handleToggleMute = useCallback(async () => {
     const newMutedState = !isMuted;
     setIsMuted(newMutedState);
-    
+
     // Update audio processing if available
     if (audioService.isAvailable() && isAudioInitialized) {
       await audioService.updateMute(newMutedState, volume);
@@ -150,7 +109,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
       try {
         const success = await audioService.startCapture();
         setIsAudioInitialized(success);
-        
+
         if (success) {
           // Fetch initial media info from the page
           const info = await audioService.getMediaInfo();
@@ -189,7 +148,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
           // @ts-ignore
           chrome.runtime.onMessage.removeListener?.(listener);
         }
-      } catch {}
+      } catch { }
     };
   }, []);
 
@@ -203,7 +162,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
         const info = await audioService.getMediaInfo();
         if (cancelled || !info) return;
         setIsPlaying(!!info.isPlaying);
-      } catch {}
+      } catch { }
     }, 2000);
     return () => {
       cancelled = true;
@@ -219,11 +178,11 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
         setShowPresetDropdown(false);
       }
     };
-    
+
     if (showPresetDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
-    
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
@@ -249,7 +208,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
         >
           <Settings size={48} />
         </button>
-  
+
         {/* Lua Preset Manager */}
         <LuaPresetManager />
       </div>
@@ -280,7 +239,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
             disabled={isConnecting}
             className={cn(
               "p-2 rounded-lg transition-all duration-200",
-              isAudioInitialized 
+              isAudioInitialized
                 ? "text-green-400 hover:text-red-400 hover:bg-eq-surface-light"
                 : "text-eq-text-dim hover:text-green-400 hover:bg-eq-surface-light",
               isConnecting && "opacity-50 cursor-not-allowed"
@@ -289,7 +248,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
           >
             {isAudioInitialized ? <Wifi size={20} /> : <WifiOff size={20} />}
           </button>
-          
+
           {/* Close Button */}
           <button
             onClick={() => window.close()}
@@ -301,7 +260,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
           >
             <PanelTopClose size={20} />
           </button>
-          
+
           {/* Settings Button */}
           <button
             onClick={() => setIsPowerOn(false)}
@@ -346,7 +305,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
                 showPresetDropdown && "rotate-180"
               )} />
             </button>
-            
+
             {showPresetDropdown && (
               <div className={cn(
                 "absolute top-full left-0 mt-1 min-w-[120px] z-50",
@@ -377,7 +336,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
             disabled={!isAudioInitialized}
             className={cn(
               "p-1.5 rounded-lg transition-all duration-200",
-              isAudioInitialized 
+              isAudioInitialized
                 ? "bg-eq-accent text-eq-background hover:bg-eq-accent-glow hover:scale-105"
                 : "bg-eq-surface-light text-eq-text-dim cursor-not-allowed",
             )}
@@ -408,7 +367,7 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
           <div className="flex justify-between items-start gap-1 pb-2">
             {FREQUENCY_BANDS.map((frequency, index) => (
               <EqualizerBand
-                key={`${frequency}-${index}`} 
+                key={`${frequency}-${index}`}
                 frequency={frequency}
                 value={eqValues[index]}
                 onChange={(value) => handleBandChange(index, value)}

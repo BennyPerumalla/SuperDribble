@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/card";
+import { Badge } from "@/components/badge";
 import { Loader2, FileText, Play, Download } from "lucide-react";
 import { audioService } from "@/lib/audioService";
 
