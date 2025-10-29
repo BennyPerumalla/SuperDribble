@@ -195,8 +195,12 @@ public:
     void update_params() {
         // Map decay (0-1) to feedback gain. Exponential mapping feels more natural.
         for (int i = 0; i < FDN_ORDER; ++i) {
-            fdn_gains[i] = powf(0.001f, (delay_lengths[i]) / (decay * sampleRate));
-            if (decay == 0.0f) fdn_gains[i] = 0.0f;
+            if (decay == 0.0){
+                fdn_gains[i] = 0.0;
+            }
+            else{
+                fdn_gains[i] = powf(0.001f, (delay_lengths[i]) / (decay * sampleRate));
+            }
         }
     }
 
