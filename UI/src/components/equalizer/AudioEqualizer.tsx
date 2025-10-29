@@ -292,10 +292,12 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
           
           {/* Close Button */}
           <button
+            onClick={() => window.close()}
             className={cn(
               "p-2 rounded-lg text-eq-text-dim hover:text-eq-accent",
               "hover:bg-eq-surface-light transition-all duration-200",
             )}
+            title="Close extension popup"
           >
             <PanelTopClose size={20} />
           </button>
