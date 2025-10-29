@@ -1,5 +1,5 @@
 
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {Routes, Route, HashRouter } from "react-router-dom";
 import Index from "./pages/Index";
