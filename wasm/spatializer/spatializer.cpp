@@ -24,8 +24,9 @@
 #include <cmath>
 #include <algorithm>
 
-const double PI = 3.14159265358979323846;
+const float PI = 3.14159265358979323846f;
 const int FDN_ORDER = 4; // 4x4 FDN for a good balance of quality and performance
+const float BUTTERWORTH_Q = 1.0f / 1.41421356237f;  // 0.70710678f 
 
 /**
  * @struct DelayLine
@@ -37,7 +38,7 @@ struct BiquadFilter {
     // Filter Coefficients
     float b0, b1, b2, a1, a2;
      
-    //State  variablles for each c hannel
+    //State  variables for each channel
     float x1 = 0.0f, x2 = 0.0f; //Input history 
     float y1 = 0.0f, y2 = 0.0f; //Output history
 
@@ -61,9 +62,9 @@ struct BiquadFilter {
 
     void configure_lowpass(float freq, float sampleRate) {
         float omega = 2.0f * PI * freq / sampleRate;
-        float sin_omega = sin(omega);
-        float cos_omega = cos(omega);
-        float alpha = sin_omega / (2.0f * 0.7071f); // ButterWorth 
+        float sin_omega = sinf(omega);
+        float cos_omega = cosf(omega);
+        float alpha = sin_omega / (2.0f * BUTTERWORTH_Q); // ButterWorth 
         
         float a0 = 1.0f + alpha;
         b0 = ((1.0f - cos_omega) / 2.0f ) / a0; 
@@ -75,9 +76,9 @@ struct BiquadFilter {
 
     void configure_highpass(float freq, float sampleRate) {
         float omega = 2.0f * PI * freq / sampleRate;
-        float sin_omega = sin(omega);
-        float cos_omega = cos(omega);
-        float alpha = sin_omega / (2.0f * 0.7071f); // ButterWorth 
+        float sin_omega = sinf(omega);
+        float cos_omega = cosf(omega);
+        float alpha = sin_omega / (2.0f * BUTTERWORTH_Q); // ButterWorth 
         
         float a0 = 1.0f + alpha;
         b0 = ((1.0f + cos_omega) / 2.0f ) / a0; 
@@ -123,14 +124,14 @@ struct DelayLine {
  * @brief Implements stereo widening and FDN reverberation.
  * The processing chain is as follows:
  * 1. Input (L/R) -> Mid/Side Conversion
- * 2. Side Channel Gain Adjustment (Width)
- * 3. Mid/Side -> L/R Conversion
- * 4. Wet Signal -> FDN Reverb
- * 5. Dry/Wet Mix
+ * 2. Side Channel Gain Adjustment (Frequency-Dependent Width)
+ * 3. Mid/Side -> L/R Conversion (This is the "Dry" signal: wide_l/r)
+ * 4. "Dry" signal is mono-summed and sent to FDN Reverb (This is the "Wet" signal: wet_l/r)
+ * 5. Final Dry/Wet Mix: (Dry * (1-mix)) + (Wet * mix)
  */
 class Spatializer {
 private:
-    double sampleRate;
+    float sampleRate;
 
     // --- Crossover Network Components ---
     float crossover_freq = 250.0f; // Crossover frequency in Hz
@@ -166,12 +167,12 @@ private:
     const float hadamard_norm = 0.5f; // 1/sqrt(N) for N=4
 
 public:
-    Spatializer(double rate) : sampleRate(rate) {
+    Spatializer(float rate) : sampleRate(rate) {
         // Mutually prime delay lengths for a diffuse reverb tail.
         // Scaled to a max of ~100ms.
         const int base_primes[] = { 1553, 1871, 2083, 2221 };
         for (int i = 0; i < FDN_ORDER; ++i) {
-            delay_lengths[i] = static_cast<int>((base_primes[i] / 2221.0) * sampleRate * 0.1);
+            delay_lengths[i] = static_cast<int>((base_primes[i] / 2221.0f) * sampleRate * 0.1f);
             delay_lines[i].set_size(delay_lengths[i] + 2); // A little extra room
         }
         update_crossover();
@@ -194,8 +195,8 @@ public:
     void update_params() {
         // Map decay (0-1) to feedback gain. Exponential mapping feels more natural.
         for (int i = 0; i < FDN_ORDER; ++i) {
-            fdn_gains[i] = pow(0.001, static_cast<double>(delay_lengths[i]) / (decay * sampleRate));
-            if (decay == 0.0) fdn_gains[i] = 0.0;
+            fdn_gains[i] = powf(0.001f, (delay_lengths[i]) / (decay * sampleRate));
+            if (decay == 0.0f) fdn_gains[i] = 0.0f;
         }
     }
 
@@ -284,7 +285,7 @@ public:
 
 // --- C-style WASM exports ---
 extern "C" {
-    Spatializer* create_spatializer(double sampleRate) {
+    Spatializer* create_spatializer(float sampleRate) {
         return new Spatializer(sampleRate);
     }
 
