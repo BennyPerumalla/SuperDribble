@@ -1,5 +1,5 @@
-import { AudioEqualizer } from "@/components/equalizer/AudioEqualizer";
-import { LuaPresetManager } from "@/components/equalizer/LuaPresetManager";
+import { AudioEqualizer } from "@/equalizer/AudioEqualizer";
+import { LuaPresetManager } from "@/equalizer/LuaPresetManager";
 
 const Index = () => {
   return (

@@ -76,7 +76,8 @@ public:
 class Equalizer {
 private:
     double sampleRate;
-    BiquadFilter bands[MAX_BANDS];
+    BiquadFilter bandsLeft[MAX_BANDS];
+    BiquadFilter bandsRight[MAX_BANDS];
 
 public:
     Equalizer(double rate) : sampleRate(rate) {}
@@ -98,6 +99,17 @@ public:
         }
 
         // All formulas derived from the Audio EQ Cookbook by Robert Bristow-Johnson.
+    
+    void setBand(int bandIndex, double frequency, double gainDb, double q) {
+        if (bandIndex < 0 || bandIndex >= MAX_BANDS) {
+            return;
+        }
+        
+        if (q <= 0.0) return;
+        if(frequency <= 0.0 || frequency > sampleRate / 2.0) return;
+    
+        // This is a standard formula for a peaking EQ filter, derived from the
+        // Audio EQ Cookbook by Robert Bristow-Johnson.
         double A = pow(10, gainDb / 40.0);
         double w0 = 2.0 * PI * frequency / sampleRate;
         double cos_w0 = cos(w0);
@@ -170,33 +182,44 @@ public:
                 break;
         }
 
-        // Normalize and store coefficients
-        BiquadFilter& band = bands[bandIndex];
-        band.b1 = b1_coeff / a0_coeff;
-        band.b2 = b2_coeff / a0_coeff;
-        band.a0 = b0_coeff / a0_coeff;
-        band.a1 = a1_coeff / a0_coeff;
-        band.a2 = a2_coeff / a0_coeff;
+        for(int ch = 0; ch < 2; ch++) {
+            BiquadFilter& band = ch == 0 ? bandsLeft[bandIndex] : bandsRight[bandIndex];
+            band.b1 = b1_coeff / a0_coeff;
+            band.b2 = b2_coeff / a0_coeff;
+            band.a0 = b0_coeff / a0_coeff;
+            band.a1 = a1_coeff / a0_coeff;
+            band.a2 = a2_coeff / a0_coeff;
+        }
     }
 
     /**
      * Processes a block of audio samples in place.
      * The input buffer is modified directly with the output.
      *
-     * @param buffer A pointer to the audio buffer (expects mono).
+     * @param buffer A pointer to an interleaved stereo audio buffer.
      * @param numSamples The number of samples in the buffer.
      */
     void process(float* buffer, int numSamples) {
-        for (int i = 0; i < numSamples; ++i) {
-            double sample = buffer[i];
-            // Process the sample through each band sequentially
+
+        for (int i = 0; i < numSamples; i += 2) {
+            // Process left channel
+            double sampleLeft = buffer[i];
             for (int j = 0; j < MAX_BANDS; ++j) {
-                sample = bands[j].processSample(sample);
+                sampleLeft = bandsLeft[j].processSample(sampleLeft);
             }
             // Simple hard clipping for safety. A proper limiter would be better in a full implementation.
-            if (sample > 1.0) sample = 1.0;
-            if (sample < -1.0) sample = -1.0;
-            buffer[i] = (float)sample;
+            if (sampleLeft > 1.0) sampleLeft = 1.0;
+            if (sampleLeft < -1.0) sampleLeft = -1.0;
+            buffer[i] = (float)sampleLeft;
+
+            // Process right channel
+            double sampleRight = buffer[i + 1];
+            for (int j = 0; j < MAX_BANDS; ++j) {
+                sampleRight = bandsRight[j].processSample(sampleRight);
+            }
+            if (sampleRight > 1.0) sampleRight = 1.0;
+            if (sampleRight < -1.0) sampleRight = -1.0;
+            buffer[i + 1] = (float)sampleRight;
         }
     }
 };
