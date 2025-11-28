@@ -26,6 +26,86 @@
 -------------------------------------------------------------------------------
 spatial_presets = {
   {
+    name = "Auditorium",
+    description = "Large concert hall with natural acoustics and wide stereo image.",
+    params = {
+      width = 1.4,   -- Wide stereo image
+      decay = 0.7,   -- Long decay for large space
+      damping = 0.4, -- Moderate damping
+      mix = 0.35     -- Balanced effect
+    }
+  },
+  {
+    name = "Echo",
+    description = "Sharp, distinct echoes with minimal diffusion.",
+    params = {
+      width = 1.2,   -- Moderate widening
+      decay = 0.6,   -- Medium decay
+      damping = 0.2, -- Low damping for clear echoes
+      mix = 0.25     -- Subtle effect
+    }
+  },
+  {
+    name = "Great hall",
+    description = "Massive cathedral-like space with long, lush reverb.",
+    params = {
+      width = 1.6,   -- Very wide stereo
+      decay = 0.9,   -- Very long decay
+      damping = 0.3, -- Low damping for natural sound
+      mix = 0.45     -- Strong effect
+    }
+  },
+  {
+    name = "Light reverb",
+    description = "Subtle room ambience with minimal coloration.",
+    params = {
+      width = 1.1,   -- Slight widening
+      decay = 0.3,   -- Short decay
+      damping = 0.7, -- High damping for clean sound
+      mix = 0.15     -- Very subtle effect
+    }
+  },
+  {
+    name = "Scene",
+    description = "Cinematic soundstage with immersive spatial effects.",
+    params = {
+      width = 1.8,   -- Very wide stereo
+      decay = 0.5,   -- Medium decay
+      damping = 0.5, -- Balanced damping
+      mix = 0.30     -- Moderate effect
+    }
+  },
+  {
+    name = "Small Room",
+    description = "Intimate space with tight, controlled reverb.",
+    params = {
+      width = 1.0,   -- No widening
+      decay = 0.2,   -- Very short decay
+      damping = 0.8, -- High damping
+      mix = 0.20     -- Subtle effect
+    }
+  },
+  {
+    name = "Stadium",
+    description = "Outdoor stadium with wide stereo and long decay.",
+    params = {
+      width = 1.9,   -- Maximum widening
+      decay = 0.8,   -- Long decay
+      damping = 0.4, -- Moderate damping
+      mix = 0.40     -- Strong effect
+    }
+  },
+  {
+    name = "Studio",
+    description = "Professional recording studio with controlled acoustics.",
+    params = {
+      width = 1.1,   -- Subtle widening
+      decay = 0.25,  -- Short decay
+      damping = 0.6, -- High damping for clean sound
+      mix = 0.20     -- Subtle effect
+    }
+  },
+  {
     name = "Studio Room",
     description = "A tight, controlled acoustic space. Adds presence without washing out the source.",
     params = {

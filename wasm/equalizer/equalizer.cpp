@@ -20,11 +20,22 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
  *****************************************************************************/
 
-#include <vector>
 #include <cmath>
 
 const double PI = 3.14159265358979323846;
 const int MAX_BANDS = 16;
+
+/**
+ * @enum FilterType
+ * @brief Defines the available filter types for each EQ band.
+ */
+enum FilterType {
+    PEAKING = 0,
+    LOW_PASS = 1,
+    HIGH_PASS = 2,
+    LOW_SHELF = 3,
+    HIGH_SHELF = 4
+};
 
 /**
  * @class BiquadFilter
@@ -65,7 +76,8 @@ public:
 class Equalizer {
 private:
     double sampleRate;
-    BiquadFilter bands[MAX_BANDS];
+    BiquadFilter bandsLeft[MAX_BANDS];
+    BiquadFilter bandsRight[MAX_BANDS];
 
 public:
     Equalizer(double rate) : sampleRate(rate) {}
@@ -73,18 +85,29 @@ public:
     /**
      * Sets the parameters for a specific EQ band.
      * This function recalculates the biquad coefficients based on the provided
-     * frequency, gain (in dB), and Q factor.
+     * frequency, gain (in dB), Q factor, and filter type.
      *
      * @param bandIndex The index of the band to modify (0-15).
-     * @param frequency The center frequency of the band in Hz.
+     * @param frequency The center/cutoff frequency of the band in Hz.
      * @param gainDb The gain in decibels (dB).
-     * @param q The Q factor (bandwidth).
+     * @param q The Q factor (bandwidth/slope).
+     * @param filterType The type of filter (PEAKING, LOW_PASS, HIGH_PASS, LOW_SHELF, HIGH_SHELF).
      */
-    void setBand(int bandIndex, double frequency, double gainDb, double q) {
+    void setBand(int bandIndex, double frequency, double gainDb, double q, FilterType filterType = PEAKING) {
         if (bandIndex < 0 || bandIndex >= MAX_BANDS) {
             return;
         }
 
+        // All formulas derived from the Audio EQ Cookbook by Robert Bristow-Johnson.
+    
+    void setBand(int bandIndex, double frequency, double gainDb, double q) {
+        if (bandIndex < 0 || bandIndex >= MAX_BANDS) {
+            return;
+        }
+        
+        if (q <= 0.0) return;
+        if(frequency <= 0.0 || frequency > sampleRate / 2.0) return;
+    
         // This is a standard formula for a peaking EQ filter, derived from the
         // Audio EQ Cookbook by Robert Bristow-Johnson.
         double A = pow(10, gainDb / 40.0);
@@ -93,39 +116,110 @@ public:
         double sin_w0 = sin(w0);
         double alpha = sin_w0 / (2.0 * q);
 
-        double b0_coeff = 1.0 + alpha * A;
-        double b1_coeff = -2.0 * cos_w0;
-        double b2_coeff = 1.0 - alpha * A;
-        double a0_coeff = 1.0 + alpha / A;
-        double a1_coeff = -2.0 * cos_w0;
-        double a2_coeff = 1.0 - alpha / A;
+        double b0_coeff, b1_coeff, b2_coeff;
+        double a0_coeff, a1_coeff, a2_coeff;
 
-        BiquadFilter& band = bands[bandIndex];
-        band.b1 = b1_coeff / a0_coeff;
-        band.b2 = b2_coeff / a0_coeff;
-        band.a0 = b0_coeff / a0_coeff;
-        band.a1 = a1_coeff / a0_coeff;
-        band.a2 = a2_coeff / a0_coeff;
+        switch (filterType) {
+            case PEAKING:
+                b0_coeff = 1.0 + alpha * A;
+                b1_coeff = -2.0 * cos_w0;
+                b2_coeff = 1.0 - alpha * A;
+                a0_coeff = 1.0 + alpha / A;
+                a1_coeff = -2.0 * cos_w0;
+                a2_coeff = 1.0 - alpha / A;
+                break;
+
+            case LOW_PASS:
+                b0_coeff = (1.0 - cos_w0) / 2.0;
+                b1_coeff = 1.0 - cos_w0;
+                b2_coeff = (1.0 - cos_w0) / 2.0;
+                a0_coeff = 1.0 + alpha;
+                a1_coeff = -2.0 * cos_w0;
+                a2_coeff = 1.0 - alpha;
+                break;
+
+            case HIGH_PASS:
+                b0_coeff = (1.0 + cos_w0) / 2.0;
+                b1_coeff = -(1.0 + cos_w0);
+                b2_coeff = (1.0 + cos_w0) / 2.0;
+                a0_coeff = 1.0 + alpha;
+                a1_coeff = -2.0 * cos_w0;
+                a2_coeff = 1.0 - alpha;
+                break;
+
+            case LOW_SHELF:
+                {
+                    double sqrt_A = sqrt(A);
+                    b0_coeff = A * ((A + 1) - (A - 1) * cos_w0 + 2.0 * sqrt_A * alpha);
+                    b1_coeff = 2.0 * A * ((A - 1) - (A + 1) * cos_w0);
+                    b2_coeff = A * ((A + 1) - (A - 1) * cos_w0 - 2.0 * sqrt_A * alpha);
+                    a0_coeff = (A + 1) + (A - 1) * cos_w0 + 2.0 * sqrt_A * alpha;
+                    a1_coeff = -2.0 * ((A - 1) + (A + 1) * cos_w0);
+                    a2_coeff = (A + 1) + (A - 1) * cos_w0 - 2.0 * sqrt_A * alpha;
+                }
+                break;
+
+            case HIGH_SHELF:
+                {
+                    double sqrt_A = sqrt(A);
+                    b0_coeff = A * ((A + 1) + (A - 1) * cos_w0 + 2.0 * sqrt_A * alpha);
+                    b1_coeff = -2.0 * A * ((A - 1) + (A + 1) * cos_w0);
+                    b2_coeff = A * ((A + 1) + (A - 1) * cos_w0 - 2.0 * sqrt_A * alpha);
+                    a0_coeff = (A + 1) - (A - 1) * cos_w0 + 2.0 * sqrt_A * alpha;
+                    a1_coeff = 2.0 * ((A - 1) - (A + 1) * cos_w0);
+                    a2_coeff = (A + 1) - (A - 1) * cos_w0 - 2.0 * sqrt_A * alpha;
+                }
+                break;
+
+            default:
+                // Fallback to peaking
+                b0_coeff = 1.0 + alpha * A;
+                b1_coeff = -2.0 * cos_w0;
+                b2_coeff = 1.0 - alpha * A;
+                a0_coeff = 1.0 + alpha / A;
+                a1_coeff = -2.0 * cos_w0;
+                a2_coeff = 1.0 - alpha / A;
+                break;
+        }
+
+        for(int ch = 0; ch < 2; ch++) {
+            BiquadFilter& band = ch == 0 ? bandsLeft[bandIndex] : bandsRight[bandIndex];
+            band.b1 = b1_coeff / a0_coeff;
+            band.b2 = b2_coeff / a0_coeff;
+            band.a0 = b0_coeff / a0_coeff;
+            band.a1 = a1_coeff / a0_coeff;
+            band.a2 = a2_coeff / a0_coeff;
+        }
     }
 
     /**
      * Processes a block of audio samples in place.
      * The input buffer is modified directly with the output.
      *
-     * @param buffer A pointer to the audio buffer (expects mono).
+     * @param buffer A pointer to an interleaved stereo audio buffer.
      * @param numSamples The number of samples in the buffer.
      */
     void process(float* buffer, int numSamples) {
-        for (int i = 0; i < numSamples; ++i) {
-            double sample = buffer[i];
-            // Process the sample through each band sequentially
+
+        for (int i = 0; i < numSamples; i += 2) {
+            // Process left channel
+            double sampleLeft = buffer[i];
             for (int j = 0; j < MAX_BANDS; ++j) {
-                sample = bands[j].processSample(sample);
+                sampleLeft = bandsLeft[j].processSample(sampleLeft);
             }
             // Simple hard clipping for safety. A proper limiter would be better in a full implementation.
-            if (sample > 1.0) sample = 1.0;
-            if (sample < -1.0) sample = -1.0;
-            buffer[i] = (float)sample;
+            if (sampleLeft > 1.0) sampleLeft = 1.0;
+            if (sampleLeft < -1.0) sampleLeft = -1.0;
+            buffer[i] = (float)sampleLeft;
+
+            // Process right channel
+            double sampleRight = buffer[i + 1];
+            for (int j = 0; j < MAX_BANDS; ++j) {
+                sampleRight = bandsRight[j].processSample(sampleRight);
+            }
+            if (sampleRight > 1.0) sampleRight = 1.0;
+            if (sampleRight < -1.0) sampleRight = -1.0;
+            buffer[i + 1] = (float)sampleRight;
         }
     }
 };
@@ -140,8 +234,8 @@ extern "C" {
         delete eq;
     }
 
-    void set_band(Equalizer* eq, int bandIndex, double frequency, double gainDb, double q) {
-        eq->setBand(bandIndex, frequency, gainDb, q);
+    void set_band(Equalizer* eq, int bandIndex, double frequency, double gainDb, double q, int filterType) {
+        eq->setBand(bandIndex, frequency, gainDb, q, static_cast<FilterType>(filterType));
     }
 
     void process_buffer(Equalizer* eq, float* buffer, int numSamples) {
