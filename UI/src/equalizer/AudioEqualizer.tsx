@@ -188,29 +188,49 @@ export const AudioEqualizer: React.FC<AudioEqualizerProps> = ({
     };
   }, [showPresetDropdown]);
 
-  if (!isPowerOn) {
+if (!isPowerOn) {
     return (
       <div
         className={cn(
-          "max-w-6xl mx-auto p-4 rounded-2xl",
+          "w-full p-6 rounded-2xl",
           "bg-eq-background border border-eq-border",
-          "flex items-center justify-center min-h-[500px]",
+          "flex flex-col items-center min-h-[500px] relative overflow-hidden",
           className,
         )}
       >
-        <button
-          onClick={() => setIsPowerOn(true)}
-          className={cn(
-            "p-6 rounded-full bg-eq-surface border border-eq-border",
-            "text-eq-text-dim hover:text-eq-accent transition-all duration-300",
-            "hover:bg-eq-surface-light hover:scale-105",
-          )}
-        >
-          <Settings size={48} />
-        </button>
+        {/* Header */}
+        <div className="w-full flex justify-center mb-8 z-10">
+          <h2 className="text-lg font-medium text-eq-text tracking-wide">Lua Presets</h2>
+        </div>
 
-        {/* Lua Preset Manager */}
-        <LuaPresetManager />
+        {/* Central Content Area */}
+        <div className="flex-1 w-full flex flex-col items-center justify-center gap-8 z-10">
+          
+          {/* Settings/Return Hub Button */}
+          <div className="relative group">
+            <div className="absolute inset-0 bg-eq-accent/10 rounded-full blur-xl group-hover:bg-eq-accent/20 transition-all duration-500" />
+            <button
+              onClick={() => setIsPowerOn(true)}
+              className={cn(
+                "relative z-10 p-8 rounded-full bg-eq-surface border border-eq-border",
+                "text-eq-text-dim hover:text-eq-accent transition-all duration-300",
+                "hover:bg-eq-surface-light hover:scale-105 hover:border-eq-accent/30",
+                "shadow-2xl flex items-center justify-center"
+              )}
+              title="Return to Equalizer"
+            >
+              <Settings size={32} className="transition-transform duration-700 group-hover:rotate-90" />
+            </button>
+          </div>
+
+          {/* Lua Preset Manager */}
+          <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <LuaPresetManager />
+          </div>
+        </div>
+
+        {/* Decorative Background Elements */}
+        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-eq-surface-light/5 via-transparent to-transparent pointer-events-none" />
       </div>
     );
   }
