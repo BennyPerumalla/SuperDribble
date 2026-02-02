@@ -28,21 +28,28 @@ export class LuaPresetParser {
 
     /**
      * Initialize the Lua parser using Fengari
-     * @returns {Promise<boolean>} - Success status
+     * @returns {Promise<boolean>}
      */
     async initialize() {
+        if (this.isLoaded) return true; // Prevent re-initialization
+
         try {
-            // Load Fengari from the extension's path
-            const fengariPath = chrome.runtime.getURL('lua/fengari.min.js');
-            
-            // Dynamic import of Fengari
-            // fengari exposes global "fengari" when loaded via <script>. For MV3, we fetch and eval.
-            const src = await (await fetch(fengariPath)).text();
-            // eslint-disable-next-line no-new-func
-            new Function(src)();
+            // Check if fengari is already in global scope (optimization)
             // @ts-ignore
-            this.fengari = self.fengari || window.fengari;
+            if (self.fengari || window.fengari) {
+                // @ts-ignore
+                this.fengari = self.fengari || window.fengari;
+            } else {
+                const fengariPath = chrome.runtime.getURL('lua/fengari.min.js');
+                const src = await (await fetch(fengariPath)).text();
+                // eslint-disable-next-line no-new-func
+                new Function(src)();
+                // @ts-ignore
+                this.fengari = self.fengari || window.fengari;
+            }
             
+            if (!this.fengari) throw new Error("Fengari failed to load into global scope");
+
             this.isLoaded = true;
             console.log('Lua preset parser initialized successfully');
             return true;
@@ -54,9 +61,9 @@ export class LuaPresetParser {
 
     /**
      * Parse a Lua preset file content
-     * @param {string} luaContent - The Lua code as a string
-     * @param {string} presetType - Type of preset ('equalizer' or 'spatializer')
-     * @returns {Array} - Array of parsed presets
+     * @param {string} luaContent 
+     * @param {string} presetType 
+     * @returns {Array} 
      */
     parsePresets(luaContent, presetType) {
         if (!this.isLoaded || !this.fengari) {
@@ -64,83 +71,99 @@ export class LuaPresetParser {
             return [];
         }
 
+        const L = this.fengari.luaL_newstate();
+        if (!L) return [];
+
         try {
-            // Create a new Lua state
-            const L = this.fengari.luaL_newstate();
             this.fengari.luaL_openlibs(L);
 
-            // Load and execute the Lua code
-            const result = this.fengari.luaL_dostring(L, luaContent);
-            
-            if (result !== 0) {
+            // Execute the Lua code
+            if (this.fengari.luaL_dostring(L, luaContent) !== 0) {
                 const error = this.fengari.lua_tostring(L, -1);
                 console.error('Lua execution error:', error);
-                this.fengari.lua_close(L);
                 return [];
             }
 
-            // Get the presets table based on type
+            // Get the specific global table
             const tableName = presetType === 'equalizer' ? 'presets' : 'spatial_presets';
             this.fengari.lua_getglobal(L, tableName);
 
             if (!this.fengari.lua_istable(L, -1)) {
-                console.error(`Table '${tableName}' not found in Lua code`);
-                this.fengari.lua_close(L);
+                console.warn(`Table '${tableName}' not found or is not a table.`);
                 return [];
             }
 
-            // Parse the presets table
+            // Parse result and cleanup
             const presets = this.parseLuaTable(L, -1);
-            
-            this.fengari.lua_close(L);
             return presets;
 
         } catch (error) {
             console.error('Error parsing Lua presets:', error);
             return [];
+        } finally {
+            // Always close state to prevent memory leaks
+            this.fengari.lua_close(L);
         }
     }
 
     /**
-     * Parse a Lua table into a JavaScript object
-     * @param {Object} L - Lua state
-     * @param {number} index - Stack index of the table
-     * @returns {Array|Object} - Parsed table
+     * Parse a Lua table into a JS object/array safely
+     * @param {Object} L 
+     * @param {number} index 
+     * @returns {Array|Object} 
      */
     parseLuaTable(L, index) {
-        const result = [];
+        // CRITICAL FIX: Convert relative index to absolute index.
+        // Pushing nil for lua_next changes relative offsets, so we must anchor 't'.
+        let t = index;
+        if (t < 0) {
+            t = this.fengari.lua_gettop(L) + (index + 1);
+        }
+
+        const result = {};
+        let isArray = true;
+        let maxIndex = 0;
         
         // Push nil to start iteration
         this.fengari.lua_pushnil(L);
         
-        while (this.fengari.lua_next(L, index - 1) !== 0) {
-            const key = this.luaValueToJS(L, -2);
+        while (this.fengari.lua_next(L, t) !== 0) {
+            // Stack: table(t), key(-2), value(-1)
+
+            // CRITICAL FIX: Duplicate key before processing.
+            // lua_tostring (used in luaValueToJS) can change the key type in-place 
+            // from Number to String, which breaks lua_next.
+            this.fengari.lua_pushvalue(L, -2); // Stack: table, key, value, key_copy
+            
+            const key = this.luaValueToJS(L, -1);
+            this.fengari.lua_pop(L, 1);        // Pop key_copy. Stack: table, key, value
+            
             const value = this.luaValueToJS(L, -1);
             
-            if (typeof key === 'number') {
-                // Array-like table
-                result[key - 1] = value; // Lua arrays are 1-indexed
+            // Logic to determine if this is an array or object
+            if (typeof key === 'number' && Number.isInteger(key) && key > 0) {
+                result[key - 1] = value; // Lua is 1-based
+                maxIndex = Math.max(maxIndex, key);
             } else {
-                // Object-like table
-                if (!Array.isArray(result)) {
-                    // Convert to object if we haven't seen numeric keys yet
-                    result.length = 0;
-                    Object.setPrototypeOf(result, Object.prototype);
-                }
+                isArray = false;
                 result[key] = value;
             }
             
-            this.fengari.lua_pop(L, 1);
+            this.fengari.lua_pop(L, 1); // Pop value, keep key for next iteration
         }
-        
-        return result;
+
+        // Return array if it looked like a sequence, otherwise object
+        if (isArray && maxIndex > 0) {
+            return Array.from({ ...result, length: maxIndex });
+        }
+        return isArray && maxIndex === 0 ? [] : result;
     }
 
     /**
      * Convert a Lua value to JavaScript
-     * @param {Object} L - Lua state
-     * @param {number} index - Stack index of the value
-     * @returns {any} - JavaScript value
+     * @param {Object} L 
+     * @param {number} index 
+     * @returns {any} 
      */
     luaValueToJS(L, index) {
         const type = this.fengari.lua_type(L, index);
@@ -153,112 +176,92 @@ export class LuaPresetParser {
             case this.fengari.LUA_TNUMBER:
                 return this.fengari.lua_tonumber(L, index);
             case this.fengari.LUA_TSTRING:
-                return this.fengari.lua_tostring(L, index);
+                // Use to_jsstring if available or decoder to handle UTF-8 correctly
+                const s = this.fengari.lua_tostring(L, index);
+                return s ? new TextDecoder().decode(s) : ""; 
             case this.fengari.LUA_TTABLE:
                 return this.parseLuaTable(L, index);
             default:
+                // Handle Functions/Userdata gracefully to avoid crash
                 return null;
         }
     }
 
     /**
-     * Load and parse equalizer presets from file
-     * @returns {Promise<Array>} - Array of equalizer presets
+     * Load equalizer presets
      */
     async loadEqualizerPresets() {
-        try {
-            const presetPath = chrome.runtime.getURL('wasm/equalizer/presets.lua');
-            const response = await fetch(presetPath);
-            const luaContent = await response.text();
-            
-            return this.parsePresets(luaContent, 'equalizer');
-        } catch (error) {
-            console.error('Failed to load equalizer presets:', error);
-            return [];
-        }
+        return this.loadPresetFile('wasm/equalizer/presets.lua', 'equalizer');
     }
 
     /**
-     * Load and parse spatializer presets from file
-     * @returns {Promise<Array>} - Array of spatializer presets
+     * Load spatializer presets
      */
     async loadSpatializerPresets() {
+        return this.loadPresetFile('wasm/spatializer/spatializer_presets.lua', 'spatializer');
+    }
+
+    /**
+     * Generic file loader helper
+     */
+    async loadPresetFile(path, type) {
         try {
-            const presetPath = chrome.runtime.getURL('wasm/spatializer/spatializer_presets.lua');
-            const response = await fetch(presetPath);
+            const url = chrome.runtime.getURL(path);
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const luaContent = await response.text();
-            
-            return this.parsePresets(luaContent, 'spatializer');
+            return this.parsePresets(luaContent, type);
         } catch (error) {
-            console.error('Failed to load spatializer presets:', error);
+            console.error(`Failed to load ${type} presets:`, error);
             return [];
         }
     }
 
     /**
      * Export a preset to Lua format
-     * @param {Object} preset - Preset object
-     * @param {string} presetType - Type of preset
-     * @returns {string} - Lua code string
      */
     exportPresetToLua(preset, presetType) {
-        if (presetType === 'equalizer') {
-            return this.exportEqualizerPreset(preset);
-        } else if (presetType === 'spatializer') {
-            return this.exportSpatializerPreset(preset);
-        }
+        if (!preset) return '';
+        if (presetType === 'equalizer') return this.exportEqualizerPreset(preset);
+        if (presetType === 'spatializer') return this.exportSpatializerPreset(preset);
         return '';
     }
 
-    /**
-     * Export an equalizer preset to Lua
-     * @param {Object} preset - Equalizer preset
-     * @returns {string} - Lua code
-     */
     exportEqualizerPreset(preset) {
-        let lua = `{\n  name = "${preset.name}",\n`;
-        
-        if (preset.description) {
-            lua += `  description = "${preset.description}",\n`;
+        const lines = [
+            `{`,
+            `  name = "${preset.name || 'Custom'}",`,
+            preset.description ? `  description = "${preset.description}",` : null,
+            `  bands = {`
+        ].filter(Boolean);
+
+        if (Array.isArray(preset.bands)) {
+            const bandLines = preset.bands.map(b => 
+                `    { frequency = ${b.frequency}, gain = ${b.gain}, q = ${b.q || 1.0} }`
+            );
+            lines.push(bandLines.join(',\n'));
         }
-        
-        lua += `  bands = {\n`;
-        
-        preset.bands.forEach((band, index) => {
-            lua += `    { frequency = ${band.frequency}, gain = ${band.gain}, q = ${band.q} }`;
-            if (index < preset.bands.length - 1) lua += ',';
-            lua += '\n';
-        });
-        
-        lua += `  }\n}`;
-        return lua;
+
+        lines.push(`  }`, `}`);
+        return lines.join('\n');
     }
 
-    /**
-     * Export a spatializer preset to Lua
-     * @param {Object} preset - Spatializer preset
-     * @returns {string} - Lua code
-     */
     exportSpatializerPreset(preset) {
-        let lua = `{\n  name = "${preset.name}",\n`;
-        
-        if (preset.description) {
-            lua += `  description = "${preset.description}",\n`;
-        }
-        
-        lua += `  params = {\n`;
-        lua += `    width = ${preset.params.width},\n`;
-        lua += `    decay = ${preset.params.decay},\n`;
-        lua += `    damping = ${preset.params.damping},\n`;
-        lua += `    mix = ${preset.params.mix}\n`;
-        lua += `  }\n}`;
-        return lua;
+        const p = preset.params || {};
+        return [
+            `{`,
+            `  name = "${preset.name || 'Custom'}",`,
+            preset.description ? `  description = "${preset.description}",` : null,
+            `  params = {`,
+            `    width = ${p.width || 0},`,
+            `    decay = ${p.decay || 0},`,
+            `    damping = ${p.damping || 0},`,
+            `    mix = ${p.mix || 0}`,
+            `  }`,
+            `}`
+        ].filter(Boolean).join('\n');
     }
 
-    /**
-     * Get the loaded status
-     * @returns {boolean} - Whether the parser is loaded
-     */
     isParserLoaded() {
         return this.isLoaded;
     }
