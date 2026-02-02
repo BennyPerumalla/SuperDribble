@@ -3,8 +3,9 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/card";
 import { Badge } from "@/components/badge";
-import { Loader2, FileText, Play, Download } from "lucide-react";
+import { Loader2, FileText, Play, Download, AlertCircle } from "lucide-react";
 import { audioService } from "@/lib/audioService";
+import { LuaPresetParser } from "@/utils/lua-preset-parser";
 
 interface LuaPreset {
   name: string;
@@ -42,17 +43,26 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
   const loadLuaPresets = async () => {
     setLoading(true);
     try {
-      // Load both types of presets
-      const [eqPresets, spatialPresets] = await Promise.all([
-        audioService.loadLuaPresets('equalizer'),
-        audioService.loadLuaPresets('spatializer')
+      // Initialize the parser
+      const parser = new LuaPresetParser();
+      const isInitialized = await parser.initialize();
+
+      if (!isInitialized) {
+        console.error("Failed to initialize Lua engine");
+        return;
+      }
+
+      // Load both types of presets directly from the parser
+      const [eqPresets, spatPresets] = await Promise.all([
+        parser.loadEqualizerPresets(),
+        parser.loadSpatializerPresets()
       ]);
 
-      setEqualizerPresets(eqPresets);
-      setSpatializerPresets(spatialPresets);
+      setEqualizerPresets(eqPresets as LuaPreset[]);
+      setSpatializerPresets(spatPresets as LuaPreset[]);
       
       console.log('Loaded equalizer presets:', eqPresets);
-      console.log('Loaded spatializer presets:', spatialPresets);
+      console.log('Loaded spatializer presets:', spatPresets);
     } catch (error) {
       console.error('Failed to load Lua presets:', error);
     } finally {
@@ -62,6 +72,7 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
 
   const applyPreset = async (preset: LuaPreset, type: 'equalizer' | 'spatializer') => {
     try {
+      // We still use audioService to APPLY the preset to the live audio graph
       const success = await audioService.applyLuaPreset(type, preset);
       if (success) {
         setActivePreset(preset.name);
@@ -125,12 +136,12 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
     <div className={cn("space-y-6", className)}>
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-eq-text">Lua Presets</h3>
-        {/* <Button
+        <Button
           variant="outline"
           size="sm"
           onClick={loadLuaPresets}
           disabled={loading}
-          className="text-eq-text-dim hover:text-eq-accent"
+          className="text-eq-text-dim hover:text-eq-accent border-eq-border bg-transparent"
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -138,7 +149,7 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
             <FileText className="h-4 w-4" />
           )}
           <span className="ml-2">Reload</span>
-        </Button> */}
+        </Button>
       </div>
 
       {/* Equalizer Presets */}
@@ -147,7 +158,11 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
           <CardTitle className="text-eq-text text-base">Equalizer Presets</CardTitle>
         </CardHeader>
         <CardContent>
-          {equalizerPresets.length === 0 ? (
+          {loading ? (
+             <div className="flex justify-center py-4 text-eq-text-dim">
+                <Loader2 className="animate-spin" size={20} />
+             </div>
+          ) : equalizerPresets.length === 0 ? (
             <p className="text-eq-text-dim text-sm">No equalizer presets found</p>
           ) : (
             <div className="space-y-2">
@@ -155,17 +170,17 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
                 <div
                   key={index}
                   className={cn(
-                    "flex items-center justify-between p-3 rounded-lg border",
+                    "flex items-center justify-between p-3 rounded-lg border transition-colors",
                     activePreset === preset.name
                       ? "bg-eq-accent/10 border-eq-accent"
-                      : "bg-eq-surface-light border-eq-border"
+                      : "bg-eq-surface-light border-eq-border hover:border-eq-accent/50"
                   )}
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-eq-text">{preset.name}</span>
                       {activePreset === preset.name && (
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="secondary" className="text-xs bg-eq-accent text-eq-background">
                           Active
                         </Badge>
                       )}
@@ -184,7 +199,7 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
                       size="sm"
                       variant="outline"
                       onClick={() => applyPreset(preset, 'equalizer')}
-                      className="text-eq-text-dim hover:text-eq-accent"
+                      className="text-eq-text-dim hover:text-eq-accent border-eq-border hover:bg-eq-surface"
                     >
                       <Play className="h-3 w-3" />
                     </Button>
@@ -192,7 +207,7 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
                       size="sm"
                       variant="outline"
                       onClick={() => exportPreset(preset, 'equalizer')}
-                      className="text-eq-text-dim hover:text-eq-accent"
+                      className="text-eq-text-dim hover:text-eq-accent border-eq-border hover:bg-eq-surface"
                     >
                       <Download className="h-3 w-3" />
                     </Button>
@@ -210,7 +225,11 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
           <CardTitle className="text-eq-text text-base">Spatializer Presets</CardTitle>
         </CardHeader>
         <CardContent>
-          {spatializerPresets.length === 0 ? (
+          {loading ? (
+             <div className="flex justify-center py-4 text-eq-text-dim">
+                <Loader2 className="animate-spin" size={20} />
+             </div>
+          ) : spatializerPresets.length === 0 ? (
             <p className="text-eq-text-dim text-sm">No spatializer presets found</p>
           ) : (
             <div className="space-y-2">
@@ -218,17 +237,17 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
                 <div
                   key={index}
                   className={cn(
-                    "flex items-center justify-between p-3 rounded-lg border",
+                    "flex items-center justify-between p-3 rounded-lg border transition-colors",
                     activePreset === preset.name
                       ? "bg-eq-accent/10 border-eq-accent"
-                      : "bg-eq-surface-light border-eq-border"
+                      : "bg-eq-surface-light border-eq-border hover:border-eq-accent/50"
                   )}
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-eq-text">{preset.name}</span>
                       {activePreset === preset.name && (
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="secondary" className="text-xs bg-eq-accent text-eq-background">
                           Active
                         </Badge>
                       )}
@@ -247,7 +266,7 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
                       size="sm"
                       variant="outline"
                       onClick={() => applyPreset(preset, 'spatializer')}
-                      className="text-eq-text-dim hover:text-eq-accent"
+                      className="text-eq-text-dim hover:text-eq-accent border-eq-border hover:bg-eq-surface"
                     >
                       <Play className="h-3 w-3" />
                     </Button>
@@ -255,7 +274,7 @@ export const LuaPresetManager: React.FC<LuaPresetManagerProps> = ({
                       size="sm"
                       variant="outline"
                       onClick={() => exportPreset(preset, 'spatializer')}
-                      className="text-eq-text-dim hover:text-eq-accent"
+                      className="text-eq-text-dim hover:text-eq-accent border-eq-border hover:bg-eq-surface"
                     >
                       <Download className="h-3 w-3" />
                     </Button>
